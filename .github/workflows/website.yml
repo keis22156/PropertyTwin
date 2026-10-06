@@ -12,8 +12,8 @@ permissions:
 
 jobs:
   website:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,3 +26,19 @@ jobs:
         working-directory: website
       - run: npm test
         working-directory: website
+      - name: Isolated PostgreSQL integration
+        run: npm run test:postgres
+        working-directory: website
+      - name: Chrome desktop and mobile paths
+        run: npm run verify:visual
+        working-directory: website
+        env:
+          VISUAL_CASES: agent-roomplan-desktop,agent-roomplan-mobile,agent-studio-desktop,agent-studio-mobile,agent-mask-desktop,agent-mask-mobile,buyer-experience-desktop,buyer-experience-mobile,buyer-private-mobile
+      - name: Visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-visual-evidence
+          path: website/verification/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7

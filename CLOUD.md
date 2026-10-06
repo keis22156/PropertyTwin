@@ -8,7 +8,7 @@ Dépôt prévu : **keis22156/PropertyTwin**, privé, branche `main`. La créatio
 - Cahier des charges complet dans `website/SAAS_REQUIREMENTS.md` et état des travaux dans `website/SAAS_SCOPE.md`.
 - Instructions pour les tâches dans `AGENTS.md`.
 - Installation reproductible : `bash scripts/cloud-setup.sh` (`npm ci`, puis build).
-- Vérifications GitHub Actions sur Linux : Node 22, build, lint et tests web.
+- Vérifications GitHub Actions sur Ubuntu 24.04 : Node 22, build, lint, tests web, PostgreSQL temporaire et parcours Chrome desktop/mobile. Les captures des fixtures sont conservées sept jours en artefact.
 - `.env`, `connection.txt`, PostgreSQL, médias clients locaux, `node_modules`, captures de vérification et réglages Xcode personnels exclus de Git. Les exemples de configuration restent disponibles.
 
 ## Créer l’environnement
@@ -56,4 +56,8 @@ Ne copier ni `website/.env` ni la connexion PostgreSQL `127.0.0.1:54329` du Mac 
 
 Pour les intégrations futures, utiliser `website/.env.example` comme inventaire. Les URL/paramètres publics vont dans les variables d’environnement ; les credentials sensibles dans le mécanisme de secrets de l’environnement. Les clés fournisseurs restent côté serveur. Les tests n’exigent aucun secret réel.
 
-`dev:shared` utilise actuellement les binaires PostgreSQL Homebrew du Mac. Pour vérifier PostgreSQL dans Linux, installer PostgreSQL et définir `POSTGRES_BIN` vers son dossier de binaires avant `npm run test:postgres`. La vérification Chrome nécessite aussi un navigateur disponible. Xcode et le rebuild iPhone continuent à se faire sur le Mac.
+`dev:shared` reste le parcours local du Mac. Les vérifications `npm run test:postgres` et `npm run verify:visual` détectent désormais leurs binaires sur le PATH, les chemins Homebrew stables du Mac et PostgreSQL 16 sur Linux. Les paramètres explicites `POSTGRES_BIN` et `CHROME_BINARY` restent prioritaires ; une valeur invalide est signalée au lieu de choisir une autre installation.
+
+Pour compléter les vérifications dans un environnement Cloud, installer PostgreSQL 16 et Chrome/Chromium s’ils ne sont pas déjà disponibles. GitHub Actions utilise l’image [Ubuntu 24.04 documentée par GitHub](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md), qui les inclut. Les tests démarrent leur propre cluster temporaire et leur propre profil navigateur ; ils ne se connectent jamais à la base du Mac.
+
+Exécuter PostgreSQL et Chrome sous un utilisateur non root. Chrome conserve sa sandbox par défaut. `CHROME_NO_SANDBOX=1` est une option explicite réservée aux conteneurs de fixtures isolés ; elle n’est pas utilisée par le workflow GitHub. Xcode et le rebuild iPhone continuent à se faire sur le Mac.

@@ -26,6 +26,6 @@ npm test
 
 Les tests HTTP utilisent des ports locaux et des données temporaires. Ils ne doivent ni utiliser une base de production ni appeler un fournisseur payant.
 
-`npm run test:postgres` nécessite PostgreSQL local et une configuration adaptée ; `npm run verify:visual` nécessite Chrome. Xcode et les tests iOS nécessitent macOS.
+`npm run test:postgres` nécessite PostgreSQL et un utilisateur non root ; `npm run verify:visual` nécessite Chrome/Chromium. Les exécutables sont détectés sur le PATH, puis dans les chemins standards macOS/Linux ; `POSTGRES_BIN` et `CHROME_BINARY` permettent des emplacements explicites. Les tests isolent leurs données et leur profil navigateur. Xcode et les tests iOS nécessitent macOS.
 
 `npm run dev:shared` est le parcours du Mac local pour la base commune app/web ; ne pas l’utiliser tel quel dans un environnement Cloud Linux. Voir `CLOUD.md`.

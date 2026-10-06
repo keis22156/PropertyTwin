@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test.mjs frontend.test.mjs auth.test.mjs roomplan.test.mjs ai-jobs.test.mjs media-storage.test.mjs photo-retouch.test.mjs local-connection.test.mjs shared-server.test.mjs ai-mask.test.mjs ai-routing.test.mjs admin-routing.test.mjs studio-tools.test.mjs",
+    "test": "node --test test.mjs frontend.test.mjs auth.test.mjs roomplan.test.mjs ai-jobs.test.mjs media-storage.test.mjs photo-retouch.test.mjs local-connection.test.mjs shared-server.test.mjs ai-mask.test.mjs ai-routing.test.mjs admin-routing.test.mjs studio-tools.test.mjs runtime-tools.test.mjs",
     "build": "node scripts/build.mjs",
     "prestart": "npm run build",
     "pretest": "npm run build",

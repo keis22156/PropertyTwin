@@ -8,9 +8,11 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {chromeBinary,chromeSandboxArgs} from './runtime-tools.mjs';
 
 // Isolated fixtures and browser profile; never uses the normal store or browser account.
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const browser=await chromeBinary(),sandboxArgs=chromeSandboxArgs();
 const temporary=await mkdtemp(path.join(os.tmpdir(),'propertytwin-visual-'));
 const output=path.join(root,'verification','screenshots');
 const requestedCases=process.env.VISUAL_CASES?new Set(process.env.VISUAL_CASES.split(',').map(name=>name.trim()).filter(Boolean)):null;
@@ -72,7 +74,6 @@ try{
   const planImage=await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800"><rect width="1280" height="800" fill="#faf9f5"/><text x="128" y="95" font-size="28" fill="#26372d">Plan technique de test — pas un scan réel</text><rect x="128" y="160" width="576" height="520" fill="#e9ece4" stroke="#26372d" stroke-width="12"/><rect x="768" y="160" width="384" height="520" fill="#e4e9ef" stroke="#26372d" stroke-width="12"/></svg>')).png().toBuffer();
   const planMedia=await call('upload',{type:'image/png',base64:planImage.toString('base64')});
   const modelMedia=await call('upload',{type:'model/gltf-binary',base64:technicalGLB().toString('base64')});modelFixtureURL=modelMedia.url;
-  const browser=process.env.CHROME_BINARY||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
   for(const [name,page,width,height] of [['platform-admin-desktop','platform-admin',1440,1000],['platform-admin-mobile','platform-admin',390,844],['agent-trash-desktop','trash',1440,1000],['agent-trash-mobile','trash',390,844],['agent-portfolio-desktop','properties',1440,1000],['agent-settings-desktop','settings',1440,1000],['agent-settings-mobile','settings',390,844],['agent-leads-desktop','leads',1440,1000],['agent-leads-mobile','leads',390,844],['agent-lead-detail-desktop','lead-detail',1440,1000],['agent-lead-detail-mobile','lead-detail',390,844],['agent-distribution-mobile','distribution',390,844],['agent-lead-timeline-desktop','lead-timeline',1440,1000],['agent-lead-timeline-mobile','lead-timeline',390,844],['agent-share-desktop','share-editor',1440,1000],['agent-share-mobile','share-editor',390,844],['agent-create-desktop','new-editor',1440,1000],['agent-create-mobile','new-editor',390,844],['agent-retouch-desktop','photo-editor',1440,1000],['agent-retouch-mobile','photo-editor',390,844],['agent-roomplan-desktop','roomplan-editor',1440,1000],['agent-roomplan-mobile','roomplan-editor',390,844],['agent-mask-desktop','mask-editor',1440,1000],['agent-mask-mobile','mask-editor',390,844],['agent-studio-desktop','studio-editor',1440,1000],['agent-studio-mobile','studio-editor',390,844],['buyer-experience-desktop','buyer-experience',1440,1000],['buyer-experience-mobile','buyer-experience',390,844],['buyer-private-desktop','buyer-private',1440,1000],['buyer-private-mobile','buyer-private',390,844]]){
     if(requestedCases&&!requestedCases.delete(name))continue;
     let buyerFixture;
@@ -90,7 +91,7 @@ try{
     await rm(screenshot,{force:true});
     if(!globalThis.WebSocket)throw Error('Lancez avec node --experimental-websocket sur Node 20.');
     const profile=path.join(temporary,name);
-    const child=spawn(browser,['--headless=new','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-background-networking','--no-first-run','--no-default-browser-check','--hide-scrollbars','--user-data-dir='+profile,'--remote-debugging-port=0','--window-size=1440,1000','about:blank'],{stdio:'ignore'});
+    const child=spawn(browser,[...sandboxArgs,'--headless=new','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-background-networking','--no-first-run','--no-default-browser-check','--hide-scrollbars','--user-data-dir='+profile,'--remote-debugging-port=0','--window-size=1440,1000','about:blank'],{stdio:'ignore'});
     let failure,socket;child.on('error',error=>{failure=error;});
     try{
       let port;

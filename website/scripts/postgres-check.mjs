@@ -11,10 +11,12 @@ import {createAIJobs} from '../ai-jobs.mjs';
 import {createRoutingStore,defaultRouting} from '../ai-routing.mjs';
 import sharp from 'sharp';
 import {technicalRoomplan} from './fixtures/roomplan.mjs';
+import {postgresBin} from './runtime-tools.mjs';
 
 // A new, isolated local PostgreSQL cluster; never connects to DATABASE_URL.
+if(process.getuid?.()===0)throw Error('test:postgres nécessite un utilisateur non root : PostgreSQL refuse initdb sous root.');
+const bin=await postgresBin();
 const command=promisify(execFile),temporary=await mkdtemp(path.join(os.tmpdir(),'pt-postgres-check-'));
-const bin=process.env.POSTGRES_BIN||'/opt/homebrew/Cellar/postgresql@16/16.12/bin';
 const probe=net.createServer();await new Promise(resolve=>probe.listen(0,'127.0.0.1',resolve));const port=probe.address().port;await new Promise(resolve=>probe.close(resolve));
 const pool=new pg.Pool({host:'127.0.0.1',port,user:'propertytwin_test',database:'postgres',max:8});
 const pools=[],queues=[];let started=false;
