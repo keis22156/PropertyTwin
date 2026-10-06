@@ -2,6 +2,29 @@
 
 Dépôt prévu : **keis22156/PropertyTwin**, privé, branche `main`. La création et le push doivent être confirmés par GitHub avant de considérer ce dépôt disponible.
 
+## Publier avec l’accès SSH du Mac
+
+Le test SSH du Mac a confirmé le compte **keis22156**. Cet accès Git permet d’envoyer les commits sans refaire la connexion par code de GitHub CLI ; il ne crée pas le dépôt à lui seul.
+
+1. Ouvrir le [formulaire GitHub prérempli](https://github.com/new?name=PropertyTwin&owner=keis22156&visibility=private), vérifier le propriétaire `keis22156` et la visibilité **Private**, puis créer le dépôt vide sans README, `.gitignore` ni licence. Voir la [procédure officielle GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-new-repository).
+2. Depuis la racine du projet, vérifier le compte et le dépôt distant :
+
+   ```sh
+   ssh -T git@github.com
+   git remote -v
+   ```
+
+   GitHub doit répondre `Hi keis22156! You've successfully authenticated`. Le code de sortie SSH `1` est normal pour ce test ([documentation GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/testing-your-ssh-connection)). Le remote `origin` doit être `git@github.com:keis22156/PropertyTwin.git`.
+3. Après confirmation que le dépôt existe et est privé, publier et vérifier :
+
+   ```sh
+   git push -u origin main
+   git ls-remote origin refs/heads/main
+   git rev-parse HEAD
+   ```
+
+   Les deux dernières commandes doivent afficher le même SHA. Le premier workflow GitHub Actions doit ensuite être vérifié sur GitHub. Une connexion SSH réussie ne prouve ni la création du dépôt ni le succès du workflow.
+
 ## Préparation incluse
 
 - Application iOS et SaaS dans le même dépôt, avec le SaaS isolé dans `website/`.
