@@ -1,6 +1,6 @@
 # PropertyTwin dans Codex Cloud
 
-Dépôt prévu : **keis22156/PropertyTwin**, privé, branche `main`. La création et le push doivent être confirmés par GitHub avant de considérer ce dépôt disponible.
+Dépôt publié : [**keis22156/PropertyTwin**](https://github.com/keis22156/PropertyTwin), privé, branche `main`. Le premier push SSH a été confirmé le 6 octobre 2026, et le SHA distant correspond au commit local. Le workflow distant et la publication de l’environnement Cloud restent des vérifications séparées.
 
 ## Publier avec l’accès SSH du Mac
 
@@ -62,7 +62,7 @@ Continue uniquement le SaaS PropertyTwin dans website/.
 Lis AGENTS.md, website/SAAS_REQUIREMENTS.md et website/SAAS_SCOPE.md avant de modifier.
 Inspecte les sources et vérifie l’état réel ; les résultats historiques ne prouvent pas l’achèvement.
 Conserve le périmètre complet du cahier des charges et commence par stabiliser la boucle agent → bien → photos → RoomPlan → IA → publication → Experience → lead.
-Les outils et presets du Studio et le transport de l’image d’inspiration viennent d’être ajoutés : vérifie leur parcours de bout en bout avant de poursuivre les exigences ouvertes.
+Les outils/presets du Studio, le transport de l’image d’inspiration et l’historique des variantes agent sont implémentés : vérifie leur parcours de bout en bout avant de poursuivre les exigences ouvertes, notamment HD, tarifs et pools agence.
 Ne modifie pas l’iOS pour cette tâche. RoomPlan reste en consultation seule ; toutes les transformations se font sur les photos 2D.
 Les tests doivent employer leurs données temporaires et leurs providers techniques, sans appels payants ni base de production.
 Après chaque étape significative : npm run build, npm run lint, npm test depuis website/.

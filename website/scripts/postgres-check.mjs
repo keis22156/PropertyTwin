@@ -98,8 +98,9 @@ try{
   process.env.DATA_DIR=path.join(temporary,'files');process.env.SUPABASE_URL='https://postgres-auth-fixture.example.test';process.env.SUPABASE_ANON_KEY='technical-public-key';delete process.env.NODE_ENV;delete process.env.AI_ENDPOINT;delete process.env.ENABLE_DEMO;
   process.env.MEDIA_STORAGE='supabase';process.env.SUPABASE_SERVICE_ROLE_KEY='technical-storage-backend-key';
   const nativeFetch=globalThis.fetch,objects=new Map(),imageInputs=[];let imageCalls=0,holdKey,stageReadStarted,releaseRead;const readReleases=[];
+  const variantImage=await sharp({create:{width:20,height:20,channels:3,background:'#337755'}}).png().toBuffer();
   globalThis.fetch=async(url,options={})=>{
-   if(url===process.env.AI_ENDPOINT){imageCalls++;imageInputs.push(JSON.parse(options.body));assert.ok(imageInputs.at(-1).image_base64);return new Response(JSON.stringify({image_url:'https://example.test/generated.jpg'}),{headers:{'Content-Type':'application/json'}});}
+   if(url===process.env.AI_ENDPOINT){imageCalls++;imageInputs.push(JSON.parse(options.body));assert.ok(imageInputs.at(-1).image_base64);return new Response(JSON.stringify({image_base64:variantImage.toString('base64')}),{headers:{'Content-Type':'application/json'}});}
    if(!String(url).startsWith(process.env.SUPABASE_URL))return nativeFetch(url,options);
    const route=new URL(url).pathname;
    const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
@@ -173,6 +174,18 @@ try{
    assert.equal(erasedJob.creditsCharged,1);assert.equal(erasedJob.credits,4);assert.equal(erasedJob.input,undefined);assert.equal(imageInputs.at(-1).mask_convention,'white-edit-black-keep');assert.equal(imageInputs.at(-1).mask_width,30);
    const persisted=(await pool.query('select data from private.ai_jobs where id=$1',[erasedJob.id])).rows[0].data;assert.equal(persisted.input.mask.width,30);assert.ok(persisted.input.mask.digest);assert.equal(persisted.creditsCharged,1);assert.equal(persisted.input.routing.operation,'magicErase');assert.equal(persisted.attempts[0].status,'completed');assert.equal(persisted.attempts[0].provider,'http-image-editing');assert.deepEqual(objects.get(registered.key),original);
    const repeatErasure=await request('/api/agent/generate',{slug:masked.data.property.slug,room:'salon',photo:complete.data.url,action:'Supprimer un objet',mask,async:true,idempotencyKey:'postgres-erase-intent-001'},web);assert.equal(repeatErasure.data.job.id,erasedJob.id);assert.equal(imageCalls,2);delete process.env.AI_SUPPORTS_MASK;
+
+   const revisions=await Promise.all([request('/api/agent/variant',{id:generated.data.id,slug,revision:1,patch:{label:'Parquet choisi',favorite:true}},web),request('/api/agent/variant',{id:generated.data.id,slug,revision:1,patch:{label:'Concurrent'}},native)]);
+   assert.deepEqual(revisions.map(r=>r.status).sort(),[200,409]);const parentRevision=revisions.find(r=>r.status===200).data.revision;
+   // Expire only the fixture's rate-limit timestamp to exercise the next real HTTP job.
+   await one.run(agencyOne,null,async()=>{one.state.sessions.find(s=>s.agent&&s.slug===slug).lastGeneration=0;await one.save();});
+   const chained=await request('/api/agent/generate',{slug,room:'salon',photo:complete.data.url,parentVariantId:generated.data.id,action:'Changer le sol',async:true,idempotencyKey:'postgres-variant-chain-001'},web);assert.equal(chained.status,202);
+   let chainedJob;await until(async()=>{chainedJob=(await request('/api/agent/jobs?id='+chained.data.job.id,undefined,native)).data.jobs[0];return chainedJob.status==='completed';});
+   assert.equal(imageCalls,3);assert.equal(imageInputs.at(-1).image_base64,variantImage.toString('base64'));assert.equal(chainedJob.result.parentVariantId,generated.data.id);assert.equal(chainedJob.result.original,complete.data.url);
+   const childRow=(await pool.query('select data from public.variants where id=$1',[chainedJob.result.id])).rows[0].data;assert.equal(childRow.parentVariantId,generated.data.id);assert.equal(childRow.revision,1);
+   const deleted=await request('/api/agent/variant',{slug,id:generated.data.id,revision:parentRevision,patch:{deleted:true}},native);assert.equal(deleted.status,200);assert.equal(deleted.data.image,undefined);
+   const tree=(await request('/api/agent/variants',undefined,web)).data;assert.equal(tree.find(v=>v.id===generated.data.id).image,undefined);assert.equal(tree.find(v=>v.id===chainedJob.result.id).parentVariantId,generated.data.id);
+   assert.equal((await pool.query('select data from public.properties where slug=$1',[slug])).rows[0].data.credits,creditsBefore-2);
 
    const legacyURL='/media/'+'L'.repeat(32)+'.png',legacyPath=path.join(process.env.DATA_DIR,'agencies',a,legacyURL);await writeFile(legacyPath,original);
    await one.run(agencyOne,null,async()=>{one.current().files.add(legacyURL);await one.save();});

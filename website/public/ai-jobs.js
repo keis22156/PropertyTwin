@@ -7,7 +7,7 @@ window.PropertyTwinAIJobs={
   while(alive()){
    onState(job);
    if(job.status==='completed'){
-    if(!job.result)throw Error('Le résultat de cette transformation est indisponible.');
+    if(!job.result)throw Object.assign(Error(job.resultUnavailable?'Cette version a été supprimée. Retrouvez l’historique de la photo.':'Le résultat de cette transformation est indisponible.'),{jobTerminal:true});
     return {...job.result,credits:job.credits};
    }
    if(job.status==='failed')throw Object.assign(Error(job.message||'La transformation a échoué.'),{jobTerminal:true});

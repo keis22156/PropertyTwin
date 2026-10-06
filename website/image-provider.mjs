@@ -26,10 +26,13 @@ export function imageEditingProvider(env=process.env,{readMedia,routing,catalog=
    const snapshot=input.routing||await this.prepare(input,{agent}),config=await current();validateRouting({...defaultRouting(),profiles:snapshot.profiles,routes:Object.fromEntries(Object.keys(defaultRouting().routes).map(key=>[key,{primary:snapshot.profiles[0]?.id,fallback:null}]))});
    if(!config.enabled||!snapshot.agent&&!config.buyerEnabled)throw new ProviderError('disabled');
    let image,dataURL,mime;
-   if(input.photo.startsWith('/media/')){
-    const source=await (readMedia?readMedia(input.photo,{directory,agencyId,assets}):readFile(path.join(directory,input.photo)));
+   const sourceImage=input.sourceImage||input.photo;
+   if(sourceImage.startsWith('/media/')||sourceImage.startsWith('data:image/')){
+    let source;
+    if(sourceImage.startsWith('data:image/')){const encoded=sourceImage.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/);if(!encoded)throw new ProviderError('invalid_source');source=Buffer.from(encoded[1],'base64');imageDataURL(source);}
+    else source=await (readMedia?readMedia(sourceImage,{directory,agencyId,assets}):readFile(path.join(directory,sourceImage)));
     const bytes=input.mask?await maskedSource(source,input.mask):source;image={image_base64:bytes.toString('base64')};dataURL=imageDataURL(bytes);mime=dataURL.slice(5,dataURL.indexOf(';'));
-   }else{if(input.mask)throw new ProviderError('invalid_source');image={image_url:input.photo};}
+   }else{if(input.mask)throw new ProviderError('invalid_source');image={image_url:sourceImage};}
    let reference;
    if(input.inspiration){
     if(!/^\/media\/[A-Za-z0-9_-]{32}\.(png|jpg|webp)$/.test(input.inspiration))throw new ProviderError('invalid_reference');

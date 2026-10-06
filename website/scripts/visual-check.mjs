@@ -268,6 +268,29 @@ try{
         assert.equal(aiFixtureCalls.at(-1).image_base64,image.toString('base64'));assert.equal(aiFixtureCalls.at(-1).options.style,'Japandi');assert.match(aiFixtureCalls.at(-1).instruction,/Style : Japandi/);
         const credits=await evaluate('document.querySelector("#agent-generate-form .muted").textContent');assert.match(credits,/Crédits restants : 4/);
         await writeFile(path.join(output,name+'-jobs.json'),JSON.stringify({provider:'local-simulated',reloadedWhileProcessing:true,providerCalls:1,credits:4},null,2));
+        const parentId=await evaluate('document.querySelector("[data-agent-variant]").dataset.agentVariant');
+        await evaluate('document.querySelector("[data-variant-favorite]").click()');await until('document.querySelector("[data-variant-favorite]").getAttribute("aria-pressed")==="true"');
+        await evaluate('document.querySelector("[data-variant-rename]").click();document.querySelector(".variant-rename-dialog input").value="Salon Japandi";document.querySelector(".variant-rename-dialog form").requestSubmit()');await until('!document.querySelector(".variant-rename-dialog")');
+        await evaluate('document.querySelector("[data-variant-source]").click()');await until('document.querySelector(".studio-source-context").textContent.includes("Salon Japandi")');
+        // Respect the real rate limit; the fixture is never connected to a paid provider.
+        await new Promise(resolve=>setTimeout(resolve,31000));
+        await evaluate('(()=>{const action=document.querySelector("[name=action]");action.value="Changer le sol";action.dispatchEvent(new Event("change",{bubbles:true}));document.querySelector("#agent-generate-form").requestSubmit();})()');
+        await until('document.querySelectorAll("[data-variant-node]").length===2&&!document.querySelector("[data-generate]").disabled');
+        assert.equal(aiFixtureCalls.length,before+2);assert.equal(aiFixtureCalls.at(-1).image_base64,aiFixtureImage.toString('base64'));
+        const childId=await evaluate('document.querySelectorAll("[data-agent-variant]")[1].dataset.agentVariant');
+        assert.equal(await evaluate(`document.querySelector('[data-variant-node="${childId}"]').style.getPropertyValue('--variant-depth')`),'1');
+        const remoteVariants=await (await fetch(origin+'/api/agent/variants',{headers:{Authorization:'Bearer '+process.env.ADMIN_TOKEN}})).json();const childVariant=remoteVariants.find(v=>v.id===childId);assert.equal(childVariant.parentVariantId,parentId);assert.equal(childVariant.original,media.url);
+        await evaluate('window.confirm=()=>true;document.querySelector("[data-variant-delete]").click()');await until('Boolean(document.querySelector("[data-variant-restore]"))');
+        assert.equal(await evaluate(`Boolean(document.querySelector('[data-variant-node="${childId}"] img'))`),true);assert.equal(await evaluate(`Boolean(document.querySelector('[data-variant-node="${parentId}"] img'))`),false);
+        await evaluate('document.querySelector("[data-variant-restore]").click()');await until('document.querySelectorAll("[data-variant-download]").length===2');
+        const downloads=path.join(temporary,name+'-downloads');await mkdir(downloads,{recursive:true});await command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
+        await evaluate(`document.querySelector('[data-variant-download="${childId}"]').click()`);
+        let downloaded;for(let attempt=0;attempt<100;attempt++){try{downloaded=await readFile(path.join(downloads,'propertytwin-'+childId+'.png'));break;}catch{await new Promise(resolve=>setTimeout(resolve,100));}}
+        assert.deepEqual(downloaded,aiFixtureImage,'Le téléchargement doit conserver les octets de la génération.');
+        await command('Page.reload');await until('Boolean(document.querySelector("#publish-property"))');await evaluate('document.querySelector(\'[data-editor-tab="Studio IA"]\').click()');await until('document.querySelectorAll("[data-variant-node]").length===2');
+        assert.equal(await evaluate(`document.querySelector('[data-variant-favorite="${parentId}"]').getAttribute('aria-pressed')`),'true');
+        assert.match(await evaluate('document.querySelector("#agent-generate-form .muted").textContent'),/Crédits restants : 3/);
+        await writeFile(path.join(output,name+'-variants.json'),JSON.stringify({parentId,childId,usedParentImage:true,rename:true,favorite:true,deletePreservesChild:true,restore:true,downloadBytesVerified:true,persistedAfterReload:true,providerCalls:2,credits:3},null,2));
       }
       if(buyerFixture){
         if(buyerFixture.private){

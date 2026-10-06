@@ -205,7 +205,7 @@ window.PropertyTwinAIJobs={
   while(alive()){
    onState(job);
    if(job.status==='completed'){
-    if(!job.result)throw Error('Le résultat de cette transformation est indisponible.');
+    if(!job.result)throw Object.assign(Error(job.resultUnavailable?'Cette version a été supprimée. Retrouvez l’historique de la photo.':'Le résultat de cette transformation est indisponible.'),{jobTerminal:true});
     return {...job.result,credits:job.credits};
    }
    if(job.status==='failed')throw Object.assign(Error(job.message||'La transformation a échoué.'),{jobTerminal:true});
@@ -431,11 +431,55 @@ window.PropertyTwinStudioForm=function({form,draft,onGenerate,onErase,onUpload})
  collect();update();
 };
 
+window.PropertyTwinVariantHistory=function({root,variants,photo,photos=[],sourceId,onSource,onCompare,onChange,onReload,update,notify}){
+ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const items=variants,byId=new Map(items.map(v=>[v.id,v])),ordered=[],seen=new Set();
+ function visit(v,depth){if(seen.has(v.id))return;seen.add(v.id);ordered.push({v,depth});for(const child of items.filter(child=>child.parentVariantId===v.id))visit(child,depth+1);}
+ for(const v of items.filter(v=>!byId.has(v.parentVariantId)))visit(v,0);
+ for(const v of items)visit(v,0);
+ root.className='variant-history';
+ root.innerHTML=`<div class="variant-history-heading"><div><h3>Historique des photos</h3><p>${items.filter(v=>!v.deletedAt).length} version(s) · vos originaux sont conservés</p></div><button type="button" data-variant-original ${sourceId?'':'disabled'}>Repartir de l’original</button></div><ol class="variant-tree"><li class="variant-original">Photo sélectionnée · ${esc(photo.name)}</li>${ordered.map(({v,depth})=>`<li style="--variant-depth:${Math.min(depth,5)}" class="variant-node ${v.deletedAt?'variant-deleted':''} ${v.id===sourceId?'variant-source-selected':''}" data-variant-node="${esc(v.id)}">${v.deletedAt?'<span class="variant-tombstone">↳</span>':`<img src="${esc(v.image)}" alt="${esc(v.label)}" loading="lazy">`}<div class="variant-node-info"><strong>${esc(v.label)}</strong><small>${esc(photos.find(p=>p.room===v.room&&p.url===v.original)?.name||v.room)} · Photo ${Math.max(1,photos.filter(p=>p.room===v.room).findIndex(p=>p.url===v.original)+1)}</small><small class="variant-parent-label">Depuis ${esc(byId.get(v.parentVariantId)?.label||'l’original')}</small>${v.visualizationNonContractual?'<small>Visualisation non contractuelle</small>':''}${v.id===sourceId?'<small class="variant-source-badge">Source de la prochaine transformation</small>':''}</div><div class="variant-node-actions">${v.deletedAt?`<button type="button" data-variant-restore="${esc(v.id)}">Restaurer</button>`:`<button type="button" data-agent-variant="${esc(v.id)}" ${photos.some(p=>p.room===v.room&&p.url===v.original)?'':'disabled title="Photo originale retirée du bien"'}>Comparer</button><button type="button" data-variant-source="${esc(v.id)}" ${photos.some(p=>p.room===v.room&&p.url===v.original)?'':'disabled title="Photo originale retirée du bien"'}>Continuer cette version</button><button type="button" data-variant-favorite="${esc(v.id)}" aria-pressed="${Boolean(v.favorite)}" aria-label="${v.favorite?'Retirer des favoris':'Ajouter aux favoris'}">${v.favorite?'★':'☆'}</button><button type="button" data-variant-rename="${esc(v.id)}">Renommer</button><button type="button" data-variant-download="${esc(v.id)}">Télécharger</button><button type="button" data-variant-delete="${esc(v.id)}">Supprimer</button>`}</div></li>`).join('')}</ol>`;
+ root.querySelector('[data-variant-original]').onclick=()=>onSource(null);
+ const find=id=>byId.get(id);
+ const reload=async()=>{try{return await onReload();}catch(error){notify(error.message);return null;}};
+ async function change(v,patch,button){
+  button.disabled=true;
+  try{onChange(await update({id:v.id,revision:v.revision||1,patch}));}
+  catch(error){notify(error.message);if(error.status===409)await reload();}
+  finally{button.disabled=false;}
+ }
+ for(const button of root.querySelectorAll('[data-agent-variant]'))button.onclick=()=>onCompare(find(button.dataset.agentVariant));
+ for(const button of root.querySelectorAll('[data-variant-source]'))button.onclick=()=>onSource(find(button.dataset.variantSource));
+ for(const button of root.querySelectorAll('[data-variant-favorite]'))button.onclick=()=>{const v=find(button.dataset.variantFavorite);return change(v,{favorite:!v.favorite},button);};
+ for(const button of root.querySelectorAll('[data-variant-delete]'))button.onclick=()=>{if(confirm('Supprimer cette version ? Ses versions dérivées seront conservées. Vous pourrez la restaurer.'))return change(find(button.dataset.variantDelete),{deleted:true},button);};
+ for(const button of root.querySelectorAll('[data-variant-restore]'))button.onclick=()=>change(find(button.dataset.variantRestore),{deleted:false},button);
+ for(const button of root.querySelectorAll('[data-variant-rename]'))button.onclick=()=>{
+  const v=find(button.dataset.variantRename),dialog=document.createElement('dialog');dialog.className='variant-rename-dialog';
+  dialog.innerHTML=`<form><h3>Renommer la version</h3><label>Nom<input name="label" value="${esc(v.label)}" maxlength="200" required></label><p role="alert"></p><div><button type="button">Annuler</button><button class="agent-primary">Enregistrer</button></div></form>`;
+  document.body.append(dialog);dialog.onclose=()=>dialog.remove();dialog.showModal();dialog.querySelector('[name=label]').focus();dialog.querySelector('button[type=button]').onclick=()=>dialog.close();
+  dialog.querySelector('form').onsubmit=async event=>{event.preventDefault();const submit=dialog.querySelector('.agent-primary');submit.disabled=true;try{const result=await update({id:v.id,revision:v.revision||1,patch:{label:dialog.querySelector('[name=label]').value}});onChange(result);dialog.close();}catch(error){dialog.querySelector('[role=alert]').textContent=error.message;if(error.status===409){const fresh=(await reload())?.find(item=>item.id===v.id);if(fresh&&!fresh.deletedAt){v.revision=fresh.revision;dialog.querySelector('[role=alert]').textContent='Nom actuel : « '+fresh.label+' ». Vérifiez votre saisie puis enregistrez.';}}}finally{submit.disabled=false;}};
+ };
+ for(const button of root.querySelectorAll('[data-variant-download]'))button.onclick=async()=>{
+  const v=find(button.dataset.variantDownload);button.disabled=true;
+  try{
+   const response=await fetch(v.image,{credentials:v.image.startsWith('/media/')?'same-origin':'omit'});
+   if(!response.ok)throw Error('Image indisponible.');
+   const chunks=[];let size=0;
+   if(response.body){const reader=response.body.getReader();try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>16000000)throw Error('Image trop volumineuse.');chunks.push(value);}}finally{await reader.cancel();}}
+   else{const bytes=new Uint8Array(await response.arrayBuffer());size=bytes.length;if(size>16000000)throw Error('Image trop volumineuse.');chunks.push(bytes);}
+   const mime=response.headers.get('content-type')?.split(';')[0],ext=({'image/png':'png','image/jpeg':'jpg','image/webp':'webp'})[mime];
+   if(!ext||!size)throw Error('Image invalide.');
+   const url=URL.createObjectURL(new Blob(chunks,{type:mime})),link=document.createElement('a');link.href=url;link.download='propertytwin-'+v.id+'.'+ext;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);
+  }catch{notify('Le téléchargement est indisponible. Une image distante doit autoriser le téléchargement depuis ce site.');}
+  finally{button.disabled=false;}
+ };
+};
+
 window.PropertyTwinDashboard=async function(authSession=null){
 const root=document.querySelector('#app');const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icons={home:'▦',properties:'▤',media:'▧',studio:'✧',leads:'♧',distribution:'↗',settings:'⚙',trash:'⌫'};
 const studioDrafts=new Map();
-let roomToFocus=null;let key=authSession?'cookie':sessionStorage.getItem('pt-agent-key')||'',workspace={},props=[],activity={sessions:[],leads:[],variants:[]},page='home',selected=null,editingBaseline=null,creationKey=null,creationBaseline=null,mediaJobs=0,tab='Informations',search='',filter='all',leadSearch='',leadStage='all',dirty=false,agentVariants=[],studioPhoto=null;
+let roomToFocus=null;let key=authSession?'cookie':sessionStorage.getItem('pt-agent-key')||'',workspace={},props=[],activity={sessions:[],leads:[],variants:[]},page='home',selected=null,editingBaseline=null,creationKey=null,creationBaseline=null,mediaJobs=0,tab='Informations',search='',filter='all',leadSearch='',leadStage='all',dirty=false,agentVariants=[],studioPhoto=null,studioParentId=null,studioComparisonId=null;
 root.addEventListener('click',async event=>{if(!event.target.closest('#connect-iphone'))return;try{const [pair,connection]=await Promise.all([call('pair',{}),call('connection')]);const dialog=document.createElement('dialog');dialog.className='iphone-connection';const origins=pair.origins.length?pair.origins:[location.origin];dialog.innerHTML=`<form method="dialog"><button aria-label="Fermer">Fermer</button></form><h2>Connecter l’iPhone</h2><p>${connection.database==='postgres'?'Base PostgreSQL commune active.':'Stockage local JSON actif.'} Gardez le Mac allumé et les deux appareils sur le même Wi-Fi.</p><p>Avec la nouvelle version de l’app, ouvrez ce lien dans Safari sur votre iPhone. Il expire dans cinq minutes et ne fonctionne qu’une fois.</p>${origins.map(origin=>{const link='propertytwin://connect?'+new URLSearchParams({origin,code:pair.code});return `<p><b>${esc(origin)}</b><br><a href="${esc(link)}">Connecter PropertyTwin</a><br><button type="button" data-copy-pair="${esc(link)}">Copier le lien</button></p>`;}).join('')}`;dialog.querySelectorAll('[data-copy-pair]').forEach(button=>button.onclick=()=>navigator.clipboard.writeText(button.dataset.copyPair).then(()=>{button.textContent='Lien copié';}).catch(()=>{notify('Ouvrez le dashboard dans Safari sur l’iPhone pour toucher le lien.');}));dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();}catch(error){notify(error.message);}});
 const notify=message=>{const n=document.querySelector('#notice');n.textContent=message;n.style.display='block';setTimeout(()=>n.style.display='none',5000);};
 async function call(endpoint,body){
@@ -506,18 +550,23 @@ if(tab==='Photos'){body.innerHTML=`<div class="agent-panel"><div class="panel-he
 });}
 if(tab==='Photos'&&roomToFocus){body.querySelector('[data-room-editor="'+CSS.escape(roomToFocus)+'"]')?.scrollIntoView();roomToFocus=null;}
 if(tab==='Studio IA'){const all=selected.rooms.flatMap(r=>r.photos.map(url=>({room:r.id,name:r.name,url})));studioPhoto=all.find(p=>p.url===studioPhoto?.url&&p.room===studioPhoto?.room)||all[0];body.innerHTML=`<div class="agent-panel"><div class="panel-heading"><h2>Révélez le potentiel de vos pièces.</h2><p>Une vraie transformation à partir de votre photo originale.</p></div>${studioPhoto?`<div class="agent-studio-layout"><div><div id="agent-compare" class="agent-compare"><img src="${esc(studioPhoto.url)}" alt="Photo originale"></div><div class="agent-studio-thumbnails">${all.map((photo,i)=>`<button data-studio-photo="${i}" class="${photo.url===studioPhoto.url?'selected':''}"><img src="${esc(photo.url)}" alt="${esc(photo.name)}"><span>${esc(photo.name)}</span></button>`).join('')}</div></div><form id="agent-generate-form"></form></div><div id="agent-variants" class="editor-photo-grid"></div>`:'<p>Importez les photos de vos pièces avant de lancer une transformation.</p>'}</div>`;body.querySelectorAll('[data-studio-photo]').forEach(button=>button.onclick=()=>{studioPhoto=all[+button.dataset.studioPhoto];editorBody();});if(studioPhoto){
- const photo={...studioPhoto},property=selected,draftKey=(property.slug||creationKey)+'/'+photo.room+'/'+photo.url;
+ const photo={...studioPhoto},property=selected;
+ const parent=agentVariants.find(v=>v.id===studioParentId&&v.slug===property.slug&&v.room===photo.room&&v.original===photo.url&&!v.deletedAt);
+ if(!parent)studioParentId=null;
+ const source=parent?{parentVariantId:parent.id}:{},draftKey=(property.slug||creationKey)+'/'+photo.room+'/'+photo.url+'/'+(parent?.id||'original');
+ const context=document.createElement('div');context.className='studio-source-context';context.textContent=parent?'Transformer la version « '+parent.label+' »':'Transformer la photo originale';document.querySelector('#agent-compare').before(context);
+ if(parent)showComparison(parent);else studioComparisonId=null;
  if(!studioDrafts.has(draftKey))studioDrafts.set(draftKey,{});
  const form=document.querySelector('#agent-generate-form');
  window.PropertyTwinStudioForm({form,draft:studioDrafts.get(draftKey),onUpload:async file=>{
   if(!property.slug||dirty||selected!==property)throw Error('Enregistrez le bien et ses photos avant d’importer une inspiration.');
   if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Choisissez une image PNG, JPEG ou WebP.');
   return upload(file);
- },onGenerate:payload=>generateAgentPhoto({...payload,slug:property.slug,room:photo.room,photo:photo.url,async:true},photo,property.title),onErase:()=>{
+ },onGenerate:payload=>generateAgentPhoto({...payload,...source,slug:property.slug,room:photo.room,photo:photo.url,async:true},photo,property.title),onErase:()=>{
   if(!property.slug||dirty){notify('Enregistrez le bien et ses photos avant de sélectionner un objet.');return;}
-  if(!photo.url.startsWith('/media/')){notify('Importez cette photo dans le dossier avant de sélectionner un objet.');return;}
+  if(!(parent?.image||photo.url).startsWith('/media/')&&!(parent?.image||'').startsWith('data:image/')){notify('Importez cette photo dans le dossier avant de sélectionner un objet.');return;}
   if(generationJobs.has(property.slug)){notify('Une transformation est déjà en cours pour ce bien.');return;}
-  window.PropertyTwinMaskEditor({photo,onSubmit:(mask,prompt,onAccepted)=>generateAgentPhoto({slug:property.slug,room:photo.room,photo:photo.url,action:'Supprimer un objet',prompt:prompt||'Supprimer l’objet sélectionné',mask,async:true},photo,property.title,onAccepted)});
+  window.PropertyTwinMaskEditor({photo:{...photo,url:parent?.image||photo.url},onSubmit:(mask,prompt,onAccepted)=>generateAgentPhoto({...source,slug:property.slug,room:photo.room,photo:photo.url,action:'Supprimer un objet',prompt:prompt||'Supprimer l’objet sélectionné',mask,async:true},photo,property.title,onAccepted)});
  }});
  form.querySelector('[data-studio-credits]').textContent=property.credits;renderGenerationStatus();
  const variantView=selected.slug,variantKey=key;call('variants').then(variants=>{if(key!==variantKey)return;mergeAgentVariants(variants);if(selected?.slug===variantView&&tab==='Studio IA')renderAgentVariants();}).catch(error=>{if(key===variantKey&&selected?.slug===variantView&&tab==='Studio IA')notify(error.message);});}}
@@ -537,7 +586,7 @@ async function generateAgentPhoto(payload,photo,title,onAccepted=()=>{}){
   const initial=await call('generate',{...payload,idempotencyKey:pending.key});accepted=true;onAccepted();
   const v=await window.PropertyTwinAIJobs.wait(initial,id=>call('jobs?id='+encodeURIComponent(id)),{alive:()=>dashboardAlive&&key===credential});
   generationKeys.delete(slug);if(key!==credential)return;
-  if(v.slug!==slug||v.room!==photo.room||v.original!==photo.url)throw Error('Le résultat reçu ne correspond pas à la photo sélectionnée.');
+  if(v.slug!==slug||v.room!==photo.room||v.original!==photo.url||(v.parentVariantId||null)!==(payload.parentVariantId||null))throw Error('Le résultat reçu ne correspond pas à la photo sélectionnée.');
   mergeAgentVariants([v]);applyGenerationCredits(slug,v.credits);
   if(selected?.slug===slug&&tab==='Studio IA'){if(studioPhoto?.url===photo.url)showComparison(v);renderAgentVariants();}
   notify('Transformation créée pour '+title+'.');
@@ -583,8 +632,16 @@ function applyGenerationCredits(slug,credits){
  const label=document.querySelector('#agent-generate-form [data-studio-credits]');if(label)label.textContent=selected.credits;
 }
 
-function showComparison(variant){const target=document.querySelector('#agent-compare');if(!target)return;target.innerHTML=`<img src="${esc(variant.original)}" alt="Avant"><img class="agent-after" src="${esc(variant.image)}" alt="Transformation"><input type="range" min="0" max="100" value="50" aria-label="Comparer avant après"><span class="compare-before-label">Avant</span><span class="compare-after-label">Après</span>`;target.querySelector('input').oninput=e=>target.querySelector('.agent-after').style.clipPath=`inset(0 ${100-e.target.value}% 0 0)`;}
-function renderAgentVariants(){const target=document.querySelector('#agent-variants');if(!target)return;target.innerHTML=agentVariants.filter(v=>v.slug===selected.slug).map(v=>`<article><img src="${esc(v.image)}" alt="${esc(v.label)}"><div><span class="agent-variant-label" title="${esc(v.label)}">${esc(v.label)}</span><button data-agent-variant="${esc(v.id)}">Comparer</button></div></article>`).join('');target.querySelectorAll('[data-agent-variant]').forEach(b=>b.onclick=()=>showComparison(agentVariants.find(v=>v.id===b.dataset.agentVariant)));}
+function showComparison(variant){if(!variant||variant.deletedAt)return;studioComparisonId=variant.id;const target=document.querySelector('#agent-compare');if(!target)return;target.innerHTML=`<img src="${esc(variant.original)}" alt="Avant"><img class="agent-after" src="${esc(variant.image)}" alt="Transformation"><input type="range" min="0" max="100" value="50" aria-label="Comparer avant après"><span class="compare-before-label">Avant</span><span class="compare-after-label">Après</span>`;target.querySelector('input').oninput=e=>target.querySelector('.agent-after').style.clipPath=`inset(0 ${100-e.target.value}% 0 0)`;}
+function renderAgentVariants(){
+ const target=document.querySelector('#agent-variants');if(!target||!studioPhoto||!selected)return;
+ const property=selected,credential=key;
+ window.PropertyTwinVariantHistory({root:target,variants:agentVariants.filter(v=>v.slug===property.slug),photo:studioPhoto,photos:property.rooms.flatMap(r=>r.photos.map(url=>({room:r.id,name:r.name,url}))),sourceId:studioParentId,onCompare:variant=>{if(studioPhoto.room!==variant.room||studioPhoto.url!==variant.original){studioPhoto=property.rooms.flatMap(r=>r.photos.map(url=>({room:r.id,name:r.name,url}))).find(photo=>photo.room===variant.room&&photo.url===variant.original);studioParentId=null;editorBody();}showComparison(variant);},
+  onSource:variant=>{if(variant)studioPhoto=property.rooms.flatMap(r=>r.photos.map(url=>({room:r.id,name:r.name,url}))).find(photo=>photo.room===variant.room&&photo.url===variant.original);studioParentId=variant?.id||null;editorBody();},
+  update:body=>call('variant',{...body,slug:property.slug}),
+  onChange:variant=>{if(key!==credential)return;mergeAgentVariants([variant]);if(selected?.slug===property.slug&&tab==='Studio IA'){if(variant.deletedAt&&(studioParentId===variant.id||studioComparisonId===variant.id)||studioParentId===variant.id){if(variant.deletedAt)studioParentId=null;editorBody();}else renderAgentVariants();}},
+  onReload:async()=>{const variants=await call('variants');if(key!==credential)return;mergeAgentVariants(variants);if(selected?.slug===property.slug&&tab==='Studio IA')editorBody();return variants;},notify});
+}
 async function loadBusinessRecords(){const container=document.querySelector('#business-records');if(!selected.slug){container.textContent='Enregistrez le dossier pour synchroniser ses données.';return;}try{const result=await call('records');if(!container.isConnected)return;const records=result.records.filter(r=>r.slug===selected.slug||['agency','profile'].includes(r.kind));const labels={firstName:'Prénom',lastName:'Nom',email:'Email',phone:'Téléphone',website:'Site de l’agence',address:'Adresse',brandHex:'Couleur de marque',title:'Nom de la variante',style:'Style',prompt:'Instruction',isFavorite:'Favorite',type:'Événement',event:'Interaction',timestamp:'Date',amount:'Montant proposé (€)',financing:'Financement',message:'Message',name:'Nom du mobilier',widthCM:'Largeur (cm)',depthCM:'Profondeur (cm)',heightCM:'Hauteur (cm)'};container.innerHTML=records.map((r,i)=>`<form class="editor-form business-record" data-business-record="${i}"><h3 class="wide">${({offer:'Intention d’offre',measurement:'Mesure de mobilier',variant:'Variante du studio',agency:'Coordonnées agence',profile:'Coordonnées du présentateur',event:'Activité enregistrée',interaction:'Interaction acheteur'})[r.kind]||'Donnée synchronisée'}</h3>${r.data.image?`<img class="plan-preview" src="${esc(r.data.image)}" alt="Variante du logement" loading="lazy">`:''}${Object.entries(r.data).filter(([key])=>labels[key]).map(([key,value])=>`<label>${labels[key]}${typeof value==='boolean'?`<select name="${key}"><option value="true" ${value?'selected':''}>Oui</option><option value="false" ${!value?'selected':''}>Non</option></select>`:`<input name="${key}" type="${typeof value==='number'?'number':'text'}" ${typeof value==='number'?'min="0" step="any"':''} value="${esc(value)}">`}</label>`).join('')}<button class="agent-primary">Enregistrer</button></form>`).join('')||'<p>Les offres et mesures enregistrées dans l’app apparaîtront ici automatiquement.</p>';container.querySelectorAll('form').forEach(form=>form.onsubmit=async e=>{e.preventDefault();const record=records[Number(form.dataset.businessRecord)],patch=Object.fromEntries(new FormData(form));for(const key of Object.keys(patch))if(typeof record.data[key]==='number')patch[key]=Number(patch[key]);else if(typeof record.data[key]==='boolean')patch[key]=patch[key]==='true';try{await call('sync-record',{id:record.id,patch,baseline:record.data});notify('Données enregistrées et disponibles pour l’app.');loadBusinessRecords();}catch(error){notify(error.message);}});}catch(error){if(container.isConnected)container.textContent=error.message;}}
 function bindPlanZones(){const canvas=document.querySelector('#plan-zone-canvas');if(!canvas)return;selected.floorplan.zones||=[];const controls=document.createElement('div');controls.className='plan-zone-controls';controls.innerHTML=`<label>Pièce à associer<select id="plan-zone-room">${selected.rooms.map(r=>`<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select></label><p>Tracez un rectangle sur le plan pour rendre une pièce cliquable.</p><div id="plan-zone-list"></div>`;canvas.after(controls);const overlays=canvas.querySelector('#plan-zone-overlays');function renderZones(){overlays.innerHTML=selected.floorplan.zones.map(z=>`<span style="left:${z.x}%;top:${z.y}%;width:${z.width}%;height:${z.height}%">${esc(selected.rooms.find(r=>r.id===z.room)?.name||'Pièce')}</span>`).join('');controls.querySelector('#plan-zone-list').innerHTML=selected.floorplan.zones.map((z,i)=>`<button type="button" data-remove-zone="${i}" aria-label="Retirer la zone ${esc(selected.rooms.find(r=>r.id===z.room)?.name||'Pièce')}">${esc(selected.rooms.find(r=>r.id===z.room)?.name||'Pièce')} ×</button>`).join('');controls.querySelectorAll('[data-remove-zone]').forEach(b=>b.onclick=()=>{selected.floorplan.zones.splice(Number(b.dataset.removeZone),1);dirty=true;renderZones();});}renderZones();let start,preview;const point=e=>{const rect=canvas.getBoundingClientRect();return {x:Math.min(100,Math.max(0,(e.clientX-rect.left)/rect.width*100)),y:Math.min(100,Math.max(0,(e.clientY-rect.top)/rect.height*100))};};canvas.onpointerdown=e=>{if(!selected.rooms.length||e.button!==0)return;e.preventDefault();start=point(e);canvas.setPointerCapture(e.pointerId);preview=document.createElement('span');overlays.append(preview);};canvas.onpointermove=e=>{if(!start)return;const end=point(e);Object.assign(preview.style,{left:Math.min(start.x,end.x)+'%',top:Math.min(start.y,end.y)+'%',width:Math.abs(end.x-start.x)+'%',height:Math.abs(end.y-start.y)+'%'});};canvas.onpointerup=e=>{if(!start)return;const end=point(e);const zone={room:controls.querySelector('#plan-zone-room').value,x:Math.min(start.x,end.x),y:Math.min(start.y,end.y),width:Math.abs(end.x-start.x),height:Math.abs(end.y-start.y)};if(zone.width>=1&&zone.height>=1){selected.floorplan.zones.push(zone);dirty=true;}start=null;renderZones();};canvas.onpointercancel=()=>{start=null;renderZones();};}
 async function changePublicationState(status){if(dirty){notify('Enregistrez les modifications du dossier avant de changer son état.');return;}try{await call('status',{slug:selected.slug,status});selected.status=status;await refresh();shell();editor();notify(status==='Archived'?'Bien archivé. Son lien est désactivé.':'Bien remis en brouillon. Son lien est désactivé.');}catch(error){notify(error.message);}}
@@ -677,7 +734,7 @@ async function open(data={},gateForm=null){
 try{
 const b=await api('open',{...data,source:new URLSearchParams(location.search).get('utm_source')||'direct',link:parts[0]==='v'?parts[2]:undefined});
 if(b.gated){if(!gateForm)renderBuyerGate();else gateForm.querySelector('[role=alert]').textContent='Indiquez votre nom et votre email pour poursuivre.';return;}
-p=b.property;variants=b.variants;aiAllowance=b.aiAllowance||null;room=p.rooms[0];started=Date.now();render(b.lead);const pending=b.jobs?.find(job=>['queued','processing'].includes(job.status));if(pending)resumeBuyerJob(pending);
+p=b.property;variants=b.variants.filter(v=>!v.deletedAt);aiAllowance=b.aiAllowance||null;room=p.rooms[0];started=Date.now();render(b.lead);const pending=b.jobs?.find(job=>['queued','processing'].includes(job.status));if(pending)resumeBuyerJob(pending);
 }catch(error){if(gateForm?.isConnected)gateForm.querySelector('[role=alert]').textContent=error.message||'Connexion interrompue. Réessayez.';else app.innerHTML=`<section><h1>Cette visite est indisponible.</h1><p>${escape(error.message)}</p></section>`;}
 }
 function renderBuyerGate(){

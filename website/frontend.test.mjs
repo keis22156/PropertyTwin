@@ -10,6 +10,51 @@ const html=await readFile(new URL('./public/index.html',import.meta.url),'utf8')
 const script=await readFile(new URL('./public/app.js',import.meta.url),'utf8');
 const settle=async()=>{for(let i=0;i<4;i++)await new Promise(resolve=>setImmediate(resolve));};
 const fastJobTimers=w=>{const timeout=w.setTimeout.bind(w);w.setTimeout=(callback,delay,...args)=>timeout(callback,delay===1000?0:delay,...args);};
+
+await test('L’historique agent conserve les branches, renomme, favorise, supprime et restaure sans déclencher de génération',async()=>{
+ const photo='https://example.com/root.jpg',calls=[],property={slug:'history',title:'Historique',status:'Draft',privacy:'Unlisted',credits:8,agency:{},agent:{},features:[],rooms:[{id:'salon',name:'Salon',photos:[photo]}]};
+ const variants=[{id:'parent',slug:'history',room:'salon',original:photo,image:'https://example.com/parent.png',label:'Japandi',revision:1},{id:'child',slug:'history',room:'salon',original:photo,image:'https://example.com/child.png',label:'Japandi et parquet',parentVariantId:'parent',revision:1}];
+ const dom=await domAt('http://localhost/agent',async(url,body)=>{
+  calls.push({url,body});if(url==='/api/agent/properties')return [property];if(url==='/api/agent/activity')return {sessions:[],leads:[],variants:[]};if(url==='/api/agent/variants')return variants.map(v=>v.deletedAt?{...v,image:undefined,label:'Version supprimée'}:v);
+  if(url==='/api/agent/variant'){const v=variants.find(v=>v.id===body.id);assert.equal(body.slug,'history');assert.equal(body.revision,v.revision);Object.assign(v,body.patch);v.revision++;if(body.patch.deleted)v.deletedAt='2026-10-06T12:00:00Z';if(body.patch.deleted===false)delete v.deletedAt;return v.deletedAt?{...v,image:undefined,label:'Version supprimée'}:v;}return {};
+ },w=>{w.confirm=()=>true;});
+ try{
+  const d=dom.window.document;d.querySelector('#agent-token').value='test';d.querySelector('#agent-login').requestSubmit();await settle();d.querySelector('[data-open]').click();d.querySelector('[data-editor-tab="Studio IA"]').click();await settle();
+  assert.match(d.querySelector('[data-variant-node="child"] .variant-parent-label').textContent,/Japandi/);assert.equal(d.querySelector('[data-variant-node="child"]').style.getPropertyValue('--variant-depth'),'1');
+  d.querySelector('[data-variant-favorite="parent"]').click();await settle();assert.equal(d.querySelector('[data-variant-favorite="parent"]').getAttribute('aria-pressed'),'true');
+  d.querySelector('[data-variant-rename="parent"]').click();const dialog=d.querySelector('.variant-rename-dialog');dialog.querySelector('input').value='Salon <Japandi>';dialog.querySelector('form').requestSubmit();await settle();assert.equal(d.querySelector('.variant-rename-dialog'),null);assert.equal(d.querySelector('[data-variant-node="parent"] strong').textContent,'Salon <Japandi>');assert.match(d.querySelector('[data-variant-node="child"] .variant-parent-label').textContent,/Salon <Japandi>/);
+  d.querySelector('[data-agent-variant="parent"]').click();assert.equal(d.querySelector('#agent-compare .agent-after').getAttribute('src'),variants[0].image);
+  d.querySelector('[data-variant-delete="parent"]').click();await settle();assert.equal(d.querySelector('[data-variant-node="parent"] img'),null);assert.ok(d.querySelector('[data-variant-node="child"] img'));assert.equal(d.querySelector('#agent-compare .agent-after'),null);
+  d.querySelector('[data-variant-restore="parent"]').click();await settle();assert.ok(d.querySelector('[data-variant-node="parent"] img'));assert.equal(variants[0].revision,5);assert.equal(property.credits,8);assert.equal(calls.some(c=>c.url==='/api/agent/generate'),false);
+ }finally{dom.window.close();}
+});
+
+await test('Un conflit de nom conserve la saisie, montre la valeur distante et permet une nouvelle sauvegarde vérifiée',async()=>{
+ const photo='https://example.com/photo.jpg',property={slug:'rename-conflict',title:'Conflit',status:'Draft',privacy:'Unlisted',credits:4,agency:{},agent:{},features:[],rooms:[{id:'salon',name:'Salon',photos:[photo]}]};
+ const variant={id:'version',slug:property.slug,room:'salon',original:photo,image:photo,label:'Initial',revision:1};let mutations=0;
+ const dom=await domAt('http://localhost/agent',async(url,body)=>{
+  if(url==='/api/agent/properties')return [property];if(url==='/api/agent/activity')return {sessions:[],leads:[],variants:[]};if(url==='/api/agent/variants')return [{...variant}];
+  if(url==='/api/agent/variant'){mutations++;if(mutations===1){variant.label='Autre agent';variant.revision=2;return new Response(JSON.stringify({message:'Modification simultanée'}),{status:409});}assert.equal(body.revision,2);variant.label=body.patch.label;variant.revision=3;return variant;}return {};
+ });
+ try{const d=dom.window.document;d.querySelector('#agent-token').value='test';d.querySelector('#agent-login').requestSubmit();await settle();d.querySelector('[data-open]').click();d.querySelector('[data-editor-tab="Studio IA"]').click();await settle();d.querySelector('[data-variant-rename]').click();const dialog=d.querySelector('.variant-rename-dialog');dialog.querySelector('input').value='Mon nom souhaité';dialog.querySelector('form').requestSubmit();await settle();assert.equal(dialog.querySelector('input').value,'Mon nom souhaité');assert.match(dialog.querySelector('[role=alert]').textContent,/Autre agent/);dialog.querySelector('form').requestSubmit();await settle();assert.equal(d.querySelector('.variant-rename-dialog'),null);assert.equal(d.querySelector('[data-variant-node] strong').textContent,'Mon nom souhaité');assert.equal(mutations,2);}finally{dom.window.close();}
+});
+
+await test('Continuer une version envoie son identifiant avec l’original et le téléchargement conserve les octets sans transmettre le jeton',async()=>{
+ const photo='/media/'+'a'.repeat(32)+'.png',resultImage='data:image/png;base64,AQIDBA==',calls=[],downloads=[],property={slug:'branch',title:'Branches',status:'Draft',privacy:'Unlisted',credits:8,agency:{},agent:{},features:[],rooms:[{id:'salon',name:'Salon',photos:[photo]}]};
+ const variants=[{id:'parent',slug:'branch',room:'salon',original:photo,image:resultImage,label:'Japandi',revision:1}];let maskPhoto,maskSubmit;
+ const dom=await domAt('http://localhost/agent',async(url,body,options)=>{
+  calls.push({url,body,options});if(url===resultImage)return new Response(Uint8Array.from([1,2,3,4]),{headers:{'Content-Type':'image/png'}});if(url==='/api/agent/properties')return [property];if(url==='/api/agent/activity')return {sessions:[],leads:[],variants:[]};if(url==='/api/agent/variants')return variants;
+  if(url==='/api/agent/generate')return {id:'child',slug:'branch',room:body.room,original:body.photo,image:resultImage,label:'Parquet',parentVariantId:body.parentVariantId,credits:7};return {};
+ },w=>{w.URL.createObjectURL=blob=>{downloads.push(blob);return 'blob:http://localhost/fixture';};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){downloads.push({name:this.download,href:this.href});};});
+ try{
+  const w=dom.window,d=w.document;w.PropertyTwinMaskEditor=({photo,onSubmit})=>{maskPhoto=photo;maskSubmit=onSubmit;};
+  d.querySelector('#agent-token').value='test';d.querySelector('#agent-login').requestSubmit();await settle();d.querySelector('[data-open]').click();d.querySelector('[data-editor-tab="Studio IA"]').click();await settle();
+  d.querySelector('[data-variant-download="parent"]').click();await settle();assert.equal(downloads[0].size,4);assert.equal(downloads[1].name,'propertytwin-parent.png');const download=calls.find(c=>c.url===resultImage);assert.equal(download.options.credentials,'omit');assert.equal(download.options.headers,undefined);
+  d.querySelector('[data-variant-source="parent"]').click();assert.match(d.querySelector('.studio-source-context').textContent,/Japandi/);d.querySelector('#magic-eraser').click();assert.equal(maskPhoto.url,resultImage);
+  await maskSubmit({base64:'technical-mask',width:20,height:20},'Retirer un objet',()=>{});await settle();const request=calls.find(c=>c.url==='/api/agent/generate').body;assert.equal(request.parentVariantId,'parent');assert.equal(request.photo,photo);assert.equal(request.sourceImage,undefined);assert.equal(request.mask.base64,'technical-mask');assert.ok(d.querySelector('[data-variant-node="child"]'));
+  d.querySelector('[data-variant-original]').click();assert.match(d.querySelector('.studio-source-context').textContent,/photo originale/);await settle();
+ }finally{dom.window.close();}
+});
 function setupRetouchPreview(w){
  w.PropertyTwinRetouch=retouchEngine;w.requestAnimationFrame=callback=>{callback();return 1;};w.cancelAnimationFrame=()=>{};
  w.Image=class{naturalWidth=20;naturalHeight=20;set src(value){this.url=value;queueMicrotask(()=>this.onload());}};

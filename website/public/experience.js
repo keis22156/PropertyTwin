@@ -10,7 +10,7 @@ async function open(data={},gateForm=null){
 try{
 const b=await api('open',{...data,source:new URLSearchParams(location.search).get('utm_source')||'direct',link:parts[0]==='v'?parts[2]:undefined});
 if(b.gated){if(!gateForm)renderBuyerGate();else gateForm.querySelector('[role=alert]').textContent='Indiquez votre nom et votre email pour poursuivre.';return;}
-p=b.property;variants=b.variants;aiAllowance=b.aiAllowance||null;room=p.rooms[0];started=Date.now();render(b.lead);const pending=b.jobs?.find(job=>['queued','processing'].includes(job.status));if(pending)resumeBuyerJob(pending);
+p=b.property;variants=b.variants.filter(v=>!v.deletedAt);aiAllowance=b.aiAllowance||null;room=p.rooms[0];started=Date.now();render(b.lead);const pending=b.jobs?.find(job=>['queued','processing'].includes(job.status));if(pending)resumeBuyerJob(pending);
 }catch(error){if(gateForm?.isConnected)gateForm.querySelector('[role=alert]').textContent=error.message||'Connexion interrompue. Réessayez.';else app.innerHTML=`<section><h1>Cette visite est indisponible.</h1><p>${escape(error.message)}</p></section>`;}
 }
 function renderBuyerGate(){

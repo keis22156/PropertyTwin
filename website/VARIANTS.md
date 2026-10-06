@@ -1,0 +1,15 @@
+# Historique des variantes
+
+Chaque génération conserve `original` (la photo du bien), `parentVariantId` (la variante transformée ou `null`), l’opération, les options et sa révision. Les variantes historiques sans ces nouveaux champs restent compatibles. Le Studio montre les branches et les photos associées, permet comparaison, favori, renommage, suppression réversible, restauration et téléchargement.
+
+« Continuer cette version » sélectionne sa source pour la prochaine transformation. La requête garde la pièce et l’original, et envoie uniquement l’identifiant parent. Le serveur vérifie l’agence, le bien, la pièce, la photo et l’auteur autorisé : un agent utilise les versions agent de son agence ; un acheteur utilise seulement ses propres versions. Il capture l’image parent dans le job privé. Une URL d’image source fournie par le client n’est jamais utilisée. La gomme affiche et masque cette même image parent ; ses dimensions sont vérifiées par le backend. Les parents distants HTTPS sans bytes importés n’acceptent pas le masque manuel.
+
+L’idempotence inclut le parent et les options, avant capture des bytes et configuration fournisseur. Un rejeu retourne le job initial, même si le parent a depuis été supprimé, sans nouvel appel ni crédit. Une source supprimée avant prise en charge échoue et est remboursée. Une transformation déjà envoyée au fournisseur termine avec son image capturée et conserve la branche ; supprimer un parent ne supprime pas ses enfants.
+
+Les mutations utilisent `POST /api/agent/variant` avec `slug`, `id`, `revision` et `patch` (`label`, `favorite`, `deleted`). `POST /api/variant?slug=…` est réservé à la session acheteur propriétaire. Une révision périmée renvoie 409. La suppression retire l’image et le libellé personnalisé des réponses publiques, révoque le lien partagé et laisse un nœud « Version supprimée ». La restauration conserve le nom/image privés et incrémente la révision ; l’ancien lien partagé reste révoqué. Les jobs terminés n’exposent plus le résultat supprimé.
+
+Les réservations et historiques de consommation sont conservés : ces actions ne débitent, ne remboursent et ne réinitialisent aucun crédit ni quota visiteur. Les images restent dans l’historique privé pour la restauration. Cette suppression réversible ne remplace pas la suppression RGPD définitive encore à implémenter.
+
+Le téléchargement récupère les bytes, limite la taille à 16 Mo et crée un fichier PNG/JPEG/WebP dans le navigateur. Aucun jeton agent n’est transmis à un hébergeur d’image. Les sorties inline des adaptateurs directs fonctionnent sans hébergeur externe ; une URL fournisseur distante doit autoriser CORS, sinon l’interface signale explicitement l’indisponibilité. Aucune route de téléchargement serveur vers des URLs arbitraires n’est ajoutée.
+
+HD, tarifs différenciés et pools agence restent ouverts. L’API acheteur est prête pour les mutations et le chaînage, mais ses commandes d’historique enrichies restent à ajouter dans Experience. Aucun fournisseur réel n’a été appelé par les vérifications techniques.
