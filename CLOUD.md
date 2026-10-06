@@ -1,6 +1,6 @@
 # PropertyTwin dans Codex Cloud
 
-Dépôt publié : [**keis22156/PropertyTwin**](https://github.com/keis22156/PropertyTwin), privé, branche `main`. Le premier push SSH a été confirmé le 6 octobre 2026, et le SHA distant correspond au commit local. Le workflow distant et la publication de l’environnement Cloud restent des vérifications séparées.
+Dépôt publié : [**keis22156/PropertyTwin**](https://github.com/keis22156/PropertyTwin), privé, branche `main`. Les pushes SSH sont confirmés. Le [workflow Linux du 6 octobre 2026](https://github.com/keis22156/PropertyTwin/actions/runs/37459696824) a réussi sur le commit applicatif `4590c636623e0514a46d986c172b089f2583cf0c` : installation/build/lint, 118 tests web, 11 contrôles PostgreSQL et 9 parcours Chrome. Les preuves visuelles sont disponibles dans l’artefact du workflow. La publication de l’environnement Codex Cloud reste à effectuer dans l’interface.
 
 ## Publier avec l’accès SSH du Mac
 
