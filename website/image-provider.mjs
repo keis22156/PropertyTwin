@@ -5,6 +5,7 @@ import {imageDataURL} from './image-result.mjs';
 import {defaultRouting,operationRoute,validateRouting} from './ai-routing.mjs';
 import {providerCatalog,ProviderError} from './image-providers.mjs';
 import {toolInstruction} from './public/ai-tools.mjs';
+import {aiPrices,hdDimensions} from './ai-hd.mjs';
 
 // Vendor models, credential handling and fallback stay behind this interface.
 export function imageEditingProvider(env=process.env,{readMedia,routing,catalog=providerCatalog(env)}={}){
@@ -14,24 +15,24 @@ export function imageEditingProvider(env=process.env,{readMedia,routing,catalog=
   name:'image-router',
   get configured(){return Boolean(env.AI_ENDPOINT||env.OPENAI_API_KEY||env.GEMINI_API_KEY||env.BFL_API_KEY);},
   get supportsMasks(){return Boolean(env.OPENAI_API_KEY||env.BFL_API_KEY||env.AI_ENDPOINT&&env.AI_SUPPORTS_MASK==='1');},
-  async describe(){const config=await current();return config.profiles.map(p=>({...p,configured:catalog.configured(p),supportsMasks:catalog.masks(p)}));},
-  async capabilities(){const config=await current(),ready=(operation,input)=>[config.routes[operation].primary,config.routes[operation].fallback].filter(Boolean).some(id=>available(config.profiles.find(p=>p.id===id),input));return {configured:config.enabled&&(ready('agentPreview',{})||ready('homeStaging',{})),maskEditing:config.enabled&&ready('magicErase',{mask:{}})};},
+  async describe(){const config=await current();return config.profiles.map(p=>({...p,configured:catalog.configured(p),supportsMasks:catalog.masks(p),supportsHD:Boolean(catalog.hd?.(p))}));},
+  async capabilities(){const config=await current(),ready=(operation,input)=>[config.routes[operation].primary,config.routes[operation].fallback].filter(Boolean).some(id=>available(config.profiles.find(p=>p.id===id),input));return {configured:config.enabled&&(ready('agentPreview',{})||ready('homeStaging',{})),maskEditing:config.enabled&&ready('magicErase',{mask:{}}),hdRendering:config.enabled&&ready('finalHD',{quality:'hd'}),prices:aiPrices};},
   async prepare(input,{agent=true}={}){
    const config=await current();if(!config.enabled||!agent&&!config.buyerEnabled)throw Object.assign(Error('Les transformations IA sont suspendues.'),{status:503});
    const operation=operationRoute(input,{agent}),route=config.routes[operation],profiles=[route.primary,route.fallback].filter(Boolean).map(id=>({...config.profiles.find(p=>p.id===id)}));
-   if(!profiles.some(p=>available(p,input)))throw Object.assign(Error(input.mask?'La suppression d’objet n’est pas encore activée sur le backend IA. Votre sélection reste disponible.':'Les transformations IA ne sont pas encore activées pour cet outil.'),{status:503});
+   if(!profiles.some(p=>available(p,input)))throw Object.assign(Error(input.quality==='hd'?'Le rendu HD n’est pas activé pour cette agence.':input.mask?'La suppression d’objet n’est pas encore activée sur le backend IA. Votre sélection reste disponible.':'Les transformations IA ne sont pas encore activées pour cet outil.'),{status:503});
    return {revision:config.revision,operation,agent,profiles};
   },
   async edit(input,{directory,agencyId,assets,jobId,agent=true,onAttempt=async()=>{}}){
    const snapshot=input.routing||await this.prepare(input,{agent}),config=await current();validateRouting({...defaultRouting(),profiles:snapshot.profiles,routes:Object.fromEntries(Object.keys(defaultRouting().routes).map(key=>[key,{primary:snapshot.profiles[0]?.id,fallback:null}]))});
    if(!config.enabled||!snapshot.agent&&!config.buyerEnabled)throw new ProviderError('disabled');
-   let image,dataURL,mime;
+   let image,dataURL,mime,hdSize;
    const sourceImage=input.sourceImage||input.photo;
    if(sourceImage.startsWith('/media/')||sourceImage.startsWith('data:image/')){
     let source;
     if(sourceImage.startsWith('data:image/')){const encoded=sourceImage.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/);if(!encoded)throw new ProviderError('invalid_source');source=Buffer.from(encoded[1],'base64');imageDataURL(source);}
     else source=await (readMedia?readMedia(sourceImage,{directory,agencyId,assets}):readFile(path.join(directory,sourceImage)));
-    const bytes=input.mask?await maskedSource(source,input.mask):source;image={image_base64:bytes.toString('base64')};dataURL=imageDataURL(bytes);mime=dataURL.slice(5,dataURL.indexOf(';'));
+    const bytes=input.mask?await maskedSource(source,input.mask):source;image={image_base64:bytes.toString('base64')};dataURL=imageDataURL(bytes);mime=dataURL.slice(5,dataURL.indexOf(';'));if(input.quality==='hd')hdSize=await hdDimensions(bytes);
    }else{if(input.mask)throw new ProviderError('invalid_source');image={image_url:sourceImage};}
    let reference;
    if(input.inspiration){
@@ -39,7 +40,7 @@ export function imageEditingProvider(env=process.env,{readMedia,routing,catalog=
     const bytes=await (readMedia?readMedia(input.inspiration,{directory,agencyId,assets}):readFile(path.join(directory,input.inspiration)));
     const url=imageDataURL(bytes);reference={image_base64:bytes.toString('base64'),dataURL:url,mime:url.slice(5,url.indexOf(';'))};
    }
-   const request={...input,image,dataURL,mime,...(reference?{reference}:{}),instruction:toolInstruction(input)};
+   const request={...input,image,dataURL,mime,...(hdSize?{hdSize}:{}),...(reference?{reference}:{}),instruction:toolInstruction(input)};
    const signal=AbortSignal.timeout(120000);let lastError;
    for(const [index,profile] of snapshot.profiles.entries()){
     const latest=await current();if(!latest.enabled||!snapshot.agent&&!latest.buyerEnabled)throw new ProviderError('disabled');

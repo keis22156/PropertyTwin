@@ -30,7 +30,7 @@ await test('Routing rejects credentials, arbitrary URLs, unknown models and inco
   const restored=await createRoutingStore({directory}).read();assert.equal(restored.config.revision,1);assert.equal(restored.config.enabled,false);assert.equal((await readFile(path.join(directory,'platform-ai.json'),'utf8')).includes('API_KEY'),false);
  }finally{await rm(directory,{recursive:true,force:true});}
 });
-test('Operations route buyers separately from home staging, manual masks and future HD',()=>{
+test('Operations route buyers separately from home staging, manual masks and HD',()=>{
  assert.equal(operationRoute(baseInput),'homeStaging');assert.equal(operationRoute({...baseInput,action:'Rénover'}),'agentPreview');assert.equal(operationRoute({...baseInput,mask}),'magicErase');assert.equal(operationRoute({...baseInput,mask},{agent:false}),'buyerPreview');assert.equal(operationRoute({...baseInput,quality:'hd'}),'finalHD');
 });
 await test('OpenAI receives the original reference, transparent edit mask and a single preview result; no cost is fabricated',async()=>{
@@ -38,7 +38,7 @@ await test('OpenAI receives the original reference, transparent edit mask and a 
  const result=await catalog.edit(profile('openai','gpt-image-2.5-sunburst'),{...baseInput,mask,image:{image_base64:image.toString('base64')},dataURL:imageURL,instruction:'Préserver les murs'},context);
  assert.equal(sent.n,1);assert.equal(sent.quality,'low');assert.equal(sent.images[0].image_url,imageURL);assert.match(sent.prompt,/Préserver les murs/);assert.equal(headers.Authorization,'Bearer TEST_ONLY_OPENAI_KEY');assert.equal(headers['Idempotency-Key'],context.attemptKey);
  const converted=await sharp(Buffer.from(sent.mask.image_url.split(',')[1],'base64')).ensureAlpha().raw().toBuffer();assert.equal(converted[(15*40+20)*4+3],0);assert.equal(converted[3],255);assert.deepEqual(result.usage,{total_tokens:42,input_tokens:12});assert.equal(result.actualProviderCost,null);assert.equal(result.image,imageURL);assert.equal(result.providerRequestId,'req-test-only');
- await catalog.edit(profile('openai','gpt-image-2.5-flare'),{...baseInput,quality:'hd',image:{image_url:'https://example.test/photo.png'},instruction:'Préserver les murs'},context);assert.equal(sent.quality,'high');assert.equal(sent.mask,undefined);
+ await catalog.edit(profile('openai','gpt-image-2.5-flare'),{...baseInput,quality:'hd',hdSize:{width:2048,height:1536},image:{image_url:'https://example.test/photo.png'},instruction:'Préserver les murs'},context);assert.equal(sent.quality,'high');assert.equal(sent.mask,undefined);
 });
 await test('Gemini uses image interactions, extracts only model image outputs, and rejects incomplete or text-only results',async()=>{
  let sent,response={status:'completed',id:'fixture-interaction',steps:[{type:'model_output',content:[{type:'text',text:'hidden'},{type:'image',data:image.toString('base64'),mime_type:'image/png'}]}],usage:{total_tokens:9}};

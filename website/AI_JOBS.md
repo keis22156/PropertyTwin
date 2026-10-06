@@ -20,7 +20,7 @@ Un job public contient `id`, `slug`, `room`, `original`, `label`, `status`, les 
 
 ## Réservation et reprise
 
-États : `queued` → `processing` → `completed` / `failed`. Chaque aperçu coûte actuellement **1 crédit**, quelle que soit l’action. La qualité HD et les tarifs par outil ne sont pas implémentés. La retouche photo classique reste gratuite. Le budget par bien est partagé par les aperçus agent et acheteur ; le pool mensuel agence est une prochaine étape.
+États : `queued` → `processing` → `completed` / `failed`. Chaque aperçu coûte actuellement **1 crédit**, quelle que soit l’action. Le rendu HD agent ajoute une nouvelle variante pour **2 crédits supplémentaires**, avec contrôle des dimensions et reprise : voir [HD.md](HD.md). Les tarifs par outil restent à construire. La retouche photo classique reste gratuite. Le budget par bien est partagé par les aperçus agent et acheteur ; le pool mensuel agence est une prochaine étape.
 
 La réservation et le job sont sauvegardés ensemble avant tout appel fournisseur. Deux requêtes simultanées ne peuvent réserver le même dernier crédit. Deux appels fournisseur maximum s’exécutent simultanément dans ce processus. Une session a une seule génération active et un délai de 30 secondes entre les réussites. L’échec rembourse une seule fois et libère immédiatement la session. Rejouer la clé d’une tâche échouée ne redébite pas.
 

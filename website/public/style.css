@@ -141,3 +141,5 @@ model-viewer{width:100%;height:500px;background:#e9ece4}#model a img{max-width:3
 .variant-rename-dialog button{padding:10px 14px;border:1px solid #ccd3df;border-radius:8px;background:#fff;cursor:pointer}
 .variant-rename-dialog [role=alert]{font-size:13px;color:#a62d2d}
 @media(max-width:600px){.agent-shell .variant-node{padding-left:min(calc(var(--variant-depth)*12px),30px)}.agent-shell .variant-node-actions{width:100%}.agent-shell .variant-node>img{width:70px;height:54px}}
+
+.variant-hd-status{font-size:13px;color:var(--agent-muted,#657180);line-height:1.6;margin:0 0 20px}.variant-hd-badge{color:var(--agent-blue,#2558ca);font-weight:600}.variant-node-actions [data-variant-hd]{color:var(--agent-blue,#2558ca);border-color:currentColor}.variant-node-actions [data-variant-hd]:disabled{opacity:.5}

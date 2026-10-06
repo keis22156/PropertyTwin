@@ -20,15 +20,16 @@ await mkdir(output,{recursive:true});
 process.env.DATA_DIR=path.join(temporary,'data');
 process.env.ADMIN_TOKEN='isolated-visual-fixture-key';delete process.env.AI_TOKEN;delete process.env.AI_ENDPOINT;delete process.env.SUPABASE_URL;delete process.env.SUPABASE_ANON_KEY;delete process.env.PUBLIC_SITE_URL;delete process.env.AUTH_COOKIE_SECRET;delete process.env.NODE_ENV;
 for(const key of ['PLATFORM_ADMIN_TOKEN','OPENAI_API_KEY','GEMINI_API_KEY','BFL_API_KEY','BFL_RESULT_HOSTS'])delete process.env[key];process.env.PLATFORM_ADMIN_TOKEN=process.env.ADMIN_TOKEN;
-delete process.env.SHARED_WORKSPACE_ID;process.env.AI_SUPPORTS_MASK='1';delete process.env.DATABASE_URL;delete process.env.MEDIA_STORAGE;delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+delete process.env.SHARED_WORKSPACE_ID;process.env.AI_SUPPORTS_MASK='1';process.env.AI_SUPPORTS_HD='1';delete process.env.DATABASE_URL;delete process.env.MEDIA_STORAGE;delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 let holdFixtureGeneration=false,releaseFixtureGeneration,modelFixtureURL,failModelRequest=false;
 const aiFixtureCalls=[];const aiFixtureImage=await sharp({create:{width:32,height:32,channels:3,background:'#b9d5c5'}}).png().toBuffer();
+const aiFixtureHD=await sharp({create:{width:1920,height:1920,channels:3,background:'#b9d5c5'}}).png().toBuffer();
 const {server}=await import('../server.mjs');
 const shell=await readFile(path.join(root,'public','index.html'),'utf8');
 const surface=http.createServer((req,res)=>{
   const url=new URL(req.url,'http://localhost');
   if(url.pathname===modelFixtureURL&&failModelRequest){failModelRequest=false;res.statusCode=503;res.setHeader('Cache-Control','no-store');res.end('Isolated model failure fixture');return;}
-  if(url.pathname==='/fixture-ai'){const chunks=[];req.on('data',chunk=>chunks.push(chunk));req.on('end',()=>{aiFixtureCalls.push(JSON.parse(Buffer.concat(chunks).toString()));const respond=()=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({image_base64:aiFixtureImage.toString('base64')}));};if(holdFixtureGeneration)releaseFixtureGeneration=respond;else respond();});return;}
+  if(url.pathname==='/fixture-ai'){const chunks=[];req.on('data',chunk=>chunks.push(chunk));req.on('end',()=>{const input=JSON.parse(Buffer.concat(chunks).toString());aiFixtureCalls.push(input);const respond=()=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({image_base64:(input.quality==='hd'?aiFixtureHD:aiFixtureImage).toString('base64')}));};if(holdFixtureGeneration)releaseFixtureGeneration=respond;else respond();});return;}
   if(url.pathname==='/agent'&&url.searchParams.has('visual')){
     const requested=url.searchParams.get('visual');const page=['lead-detail','lead-timeline'].includes(requested)?'leads':['trash','settings','properties','leads','distribution'].includes(requested)?requested:'properties';
     const bootstrap=`<script>sessionStorage.setItem('pt-agent-key','isolated-visual-fixture-key');const ready=setInterval(()=>{const button=document.querySelector('[data-page="${page}"]');if(button){clearInterval(ready);button.click();${['lead-detail','lead-timeline'].includes(requested)?`const leadReady=setInterval(()=>{const row=document.querySelector('[data-lead]');if(row){clearInterval(leadReady);row.click();}},50);`:['share-editor','photo-editor','studio-editor','mask-editor','roomplan-editor'].includes(requested)?`const editReady=setInterval(()=>{const row=[...document.querySelectorAll('.property-title')].find(button=>button.textContent===${JSON.stringify(['studio-editor','mask-editor'].includes(requested)?(requested==='mask-editor'?'Gomme technique · ':'Studio technique · ')+(url.searchParams.get('variant')==='mobile'?'Mobile':'Desktop'):'Appartement après visite')});if(row){clearInterval(editReady);row.click();}},50);`:requested==='new-editor'?`document.querySelector('#new-property').click();`:''}}},50);</script>`;
@@ -291,6 +292,24 @@ try{
         assert.equal(await evaluate(`document.querySelector('[data-variant-favorite="${parentId}"]').getAttribute('aria-pressed')`),'true');
         assert.match(await evaluate('document.querySelector("#agent-generate-form .muted").textContent'),/Crédits restants : 3/);
         await writeFile(path.join(output,name+'-variants.json'),JSON.stringify({parentId,childId,usedParentImage:true,rename:true,favorite:true,deletePreservesChild:true,restore:true,downloadBytesVerified:true,persistedAfterReload:true,providerCalls:2,credits:3},null,2));
+        await new Promise(resolve=>setTimeout(resolve,31000));holdFixtureGeneration=true;
+        try{
+          await evaluate(`window.confirm=message=>{window.__hdConfirm=message;return true;};document.querySelector('[data-variant-hd="${childId}"]').click()`);
+          assert.match(await evaluate('window.__hdConfirm'),/2 crédits supplémentaires/);
+          for(let attempt=0;attempt<100&&!releaseFixtureGeneration;attempt++)await new Promise(resolve=>setTimeout(resolve,50));
+          assert.ok(releaseFixtureGeneration);assert.equal(aiFixtureCalls.length,before+3);
+          await command('Page.reload');await until('Boolean(document.querySelector("#publish-property"))');await evaluate('document.querySelector(\'[data-editor-tab="Studio IA"]\').click()');
+          await until('Boolean(document.querySelector("[data-variant-hd]"))');assert.equal(await evaluate('document.querySelector("[data-variant-hd]").disabled'),true);assert.equal(aiFixtureCalls.length,before+3);
+        }finally{holdFixtureGeneration=false;releaseFixtureGeneration?.();releaseFixtureGeneration=undefined;}
+        await until('Boolean(document.querySelector(".variant-hd-badge"))&&!document.querySelector("[data-generate]").disabled');
+        assert.match(await evaluate('document.querySelector(".variant-hd-badge").textContent'),/1920 × 1920/);
+        const hdInput=aiFixtureCalls.at(-1);assert.equal(hdInput.quality,'hd');assert.equal(hdInput.image_base64,aiFixtureImage.toString('base64'));assert.equal(hdInput.output_width,1920);assert.equal(hdInput.output_height,1920);assert.match(hdInput.instruction,/Ne refaire aucune transformation/);
+        const hdVariants=await (await fetch(origin+'/api/agent/variants',{headers:{Authorization:'Bearer '+process.env.ADMIN_TOKEN}})).json(),hdVariant=hdVariants.find(v=>v.parentVariantId===childId&&v.quality==='hd');assert.ok(hdVariant);assert.deepEqual(hdVariant.dimensions,{width:1920,height:1920});
+        await evaluate(`document.querySelector('[data-variant-download="${hdVariant.id}"]').click()`);
+        let hdDownload;for(let attempt=0;attempt<100;attempt++){try{hdDownload=await readFile(path.join(downloads,'propertytwin-'+hdVariant.id+'.png'));break;}catch{await new Promise(resolve=>setTimeout(resolve,100));}}assert.deepEqual(hdDownload,aiFixtureHD);
+        await command('Page.reload');await until('Boolean(document.querySelector("#publish-property"))');await evaluate('document.querySelector(\'[data-editor-tab="Studio IA"]\').click()');await until('Boolean(document.querySelector(".variant-hd-badge"))');
+        assert.match(await evaluate('document.querySelector("#agent-generate-form .muted").textContent'),/Crédits restants : 1/);assert.equal(await evaluate('document.querySelector("[data-variant-hd]").disabled'),true);
+        await writeFile(path.join(output,name+'-hd.json'),JSON.stringify({variantId:hdVariant.id,parentVariantId:childId,quality:'hd',width:1920,height:1920,creditsCharged:2,balance:1,reloadedWhileProcessing:true,downloadBytesVerified:true,providerCalls:3},null,2));
       }
       if(buyerFixture){
         if(buyerFixture.private){

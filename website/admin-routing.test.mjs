@@ -19,7 +19,7 @@ try{
   assert.equal((await request({token:process.env.PLATFORM_ADMIN_TOKEN,method:'PUT',body:{config,baseline:0}})).status,409);
   assert.equal((await request({token:process.env.PLATFORM_ADMIN_TOKEN,method:'PUT',body:{config:{...saved.data.config,apiKey:'bad'},baseline:1}})).status,400);
   assert.equal((await request({token:process.env.PLATFORM_ADMIN_TOKEN,method:'POST',body:{}})).status,405);assert.ok(!(await readFile(path.join(directory,'platform-ai.json'),'utf8')).includes(process.env.OPENAI_API_KEY));
-  const capabilities=await fetch(origin+'/api/agent/ai-config',{headers:{Authorization:'Bearer '+process.env.ADMIN_TOKEN}});assert.deepEqual(await capabilities.json(),{configured:false,maskEditing:false});
+  const capabilities=await fetch(origin+'/api/agent/ai-config',{headers:{Authorization:'Bearer '+process.env.ADMIN_TOKEN}});assert.deepEqual(await capabilities.json(),{configured:false,maskEditing:false,hdRendering:false,prices:{preview:1,hd:2}});
   delete process.env.PLATFORM_ADMIN_TOKEN;assert.equal((await request({token:process.env.ADMIN_TOKEN})).status,200);process.env.NODE_ENV='production';assert.equal((await request({token:process.env.ADMIN_TOKEN})).status,401);delete process.env.NODE_ENV;
  });
  await test('Admin switches block agent/buyer submissions before credits; reactivation uses the same job and private sessions',async()=>{

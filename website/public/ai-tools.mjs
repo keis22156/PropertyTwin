@@ -56,6 +56,7 @@ export function normalizeTool(body,{agent=true}={}){
 }
 
 export function toolInstruction(input){
+ if(input.quality==='hd')return 'Reproduire fidèlement cette version de la photo en haute définition. Conserver exactement sa composition, son cadrage, la géométrie, les ouvertures, le mobilier, les couleurs, les matériaux et la décoration. Améliorer uniquement les détails et la netteté naturelle. Ne refaire aucune transformation ni ajouter ou retirer aucun élément. Projection photo 2D uniquement.';
  const o=input.options||{};
  const structure='Conserver la géométrie, la perspective, les dimensions apparentes, les portes, fenêtres, ouvertures et équipements fixes de l’image originale. Ne déplacer ni ajouter aucun mur ou ouverture. Ne produire qu’une projection photo 2D.';
  const instructions={

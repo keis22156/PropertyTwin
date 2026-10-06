@@ -98,9 +98,10 @@ try{
   process.env.DATA_DIR=path.join(temporary,'files');process.env.SUPABASE_URL='https://postgres-auth-fixture.example.test';process.env.SUPABASE_ANON_KEY='technical-public-key';delete process.env.NODE_ENV;delete process.env.AI_ENDPOINT;delete process.env.ENABLE_DEMO;
   process.env.MEDIA_STORAGE='supabase';process.env.SUPABASE_SERVICE_ROLE_KEY='technical-storage-backend-key';
   const nativeFetch=globalThis.fetch,objects=new Map(),imageInputs=[];let imageCalls=0,holdKey,stageReadStarted,releaseRead;const readReleases=[];
+  const hdImage=await sharp({create:{width:2048,height:2048,channels:3,background:'#337755'}}).png().toBuffer();
   const variantImage=await sharp({create:{width:20,height:20,channels:3,background:'#337755'}}).png().toBuffer();
   globalThis.fetch=async(url,options={})=>{
-   if(url===process.env.AI_ENDPOINT){imageCalls++;imageInputs.push(JSON.parse(options.body));assert.ok(imageInputs.at(-1).image_base64);return new Response(JSON.stringify({image_base64:variantImage.toString('base64')}),{headers:{'Content-Type':'application/json'}});}
+   if(url===process.env.AI_ENDPOINT){imageCalls++;imageInputs.push(JSON.parse(options.body));assert.ok(imageInputs.at(-1).image_base64);return new Response(JSON.stringify({image_base64:(imageInputs.at(-1).quality==='hd'?hdImage:variantImage).toString('base64')}),{headers:{'Content-Type':'application/json'}});}
    if(!String(url).startsWith(process.env.SUPABASE_URL))return nativeFetch(url,options);
    const route=new URL(url).pathname;
    const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
@@ -186,6 +187,16 @@ try{
    const deleted=await request('/api/agent/variant',{slug,id:generated.data.id,revision:parentRevision,patch:{deleted:true}},native);assert.equal(deleted.status,200);assert.equal(deleted.data.image,undefined);
    const tree=(await request('/api/agent/variants',undefined,web)).data;assert.equal(tree.find(v=>v.id===generated.data.id).image,undefined);assert.equal(tree.find(v=>v.id===chainedJob.result.id).parentVariantId,generated.data.id);
    assert.equal((await pool.query('select data from public.properties where slug=$1',[slug])).rows[0].data.credits,creditsBefore-2);
+
+   process.env.AI_SUPPORTS_HD='1';
+   await one.run(agencyOne,null,async()=>{one.state.sessions.find(s=>s.agent&&s.slug===slug).lastGeneration=0;await one.save();});
+   const hdRequest={slug,room:'salon',photo:complete.data.url,parentVariantId:chainedJob.result.id,action:'Rendu HD',quality:'hd',async:true,idempotencyKey:'postgres-hd-intention-001'};
+   const hd=await request('/api/agent/generate',hdRequest,web);assert.equal(hd.status,202);assert.equal(hd.data.job.creditsReserved,2);
+   const replayHD=await request('/api/agent/generate',hdRequest,native);assert.equal(replayHD.data.job.id,hd.data.job.id);
+   let hdJob;await until(async()=>{hdJob=(await request('/api/agent/jobs?id='+hd.data.job.id,undefined,web)).data.jobs[0];return hdJob.status==='completed';});
+   assert.equal(hdJob.creditsCharged,2);assert.equal(hdJob.result.quality,'hd');assert.deepEqual(hdJob.result.dimensions,{width:2048,height:2048});assert.equal(hdJob.result.parentVariantId,chainedJob.result.id);assert.equal(imageCalls,4);assert.equal(imageInputs.at(-1).image_base64,variantImage.toString('base64'));assert.equal(imageInputs.at(-1).output_width,1920);
+   const hdRow=(await pool.query('select data from private.ai_jobs where id=$1',[hdJob.id])).rows[0].data;assert.equal(hdRow.input.routing.operation,'finalHD');assert.equal(hdRow.creditsReserved,2);assert.equal(hdRow.actualProviderCost,null);
+   assert.equal((await pool.query('select data from public.properties where slug=$1',[slug])).rows[0].data.credits,creditsBefore-4);delete process.env.AI_SUPPORTS_HD;
 
    const legacyURL='/media/'+'L'.repeat(32)+'.png',legacyPath=path.join(process.env.DATA_DIR,'agencies',a,legacyURL);await writeFile(legacyPath,original);
    await one.run(agencyOne,null,async()=>{one.current().files.add(legacyURL);await one.save();});

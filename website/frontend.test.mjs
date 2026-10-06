@@ -11,6 +11,38 @@ const script=await readFile(new URL('./public/app.js',import.meta.url),'utf8');
 const settle=async()=>{for(let i=0;i<4;i++)await new Promise(resolve=>setImmediate(resolve));};
 const fastJobTimers=w=>{const timeout=w.setTimeout.bind(w);w.setTimeout=(callback,delay,...args)=>timeout(callback,delay===1000?0:delay,...args);};
 
+await test('Un rendu HD échoué après recharge réaffiche les crédits remboursés et permet une nouvelle tentative',async()=>{
+ const photo='/media/'+'f'.repeat(32)+'.png',property={slug:'hd-refund',title:'Remboursement',status:'Draft',privacy:'Unlisted',credits:0,agency:{},agent:{},features:[],rooms:[{id:'salon',name:'Salon',photos:[photo]}]},job={id:'interrupted-hd',slug:'hd-refund',room:'salon',original:photo,status:'processing',quality:'hd',credits:0};let finish;
+ const dom=await domAt('http://localhost/agent',async(url)=>{if(url==='/api/agent/properties')return [property];if(url==='/api/agent/activity')return {sessions:[],leads:[],variants:[]};if(url==='/api/agent/ai-config')return {hdRendering:true,prices:{hd:2,preview:1}};if(url==='/api/agent/jobs')return {jobs:[job]};if(url.startsWith('/api/agent/jobs?id='))return new Promise(resolve=>finish=resolve);if(url==='/api/agent/variants')return [{id:'parent',slug:property.slug,room:'salon',original:photo,image:'data:image/png;base64,AQID',label:'Version'}];return {};},fastJobTimers);
+ try{const d=dom.window.document;d.querySelector('#agent-token').value='test';d.querySelector('#agent-login').requestSubmit();await new Promise(resolve=>setTimeout(resolve,20));await settle();d.querySelector('[data-open]').click();d.querySelector('[data-editor-tab="Studio IA"]').click();await settle();assert.equal(d.querySelector('[data-variant-hd]').disabled,true);assert.ok(finish);finish({jobs:[{...job,status:'failed',credits:2,message:'Rendu HD échoué. Vos crédits ont été remboursés.'}]});await new Promise(resolve=>setTimeout(resolve,20));await settle();assert.equal(d.querySelector('[data-studio-credits]').textContent,'2');assert.equal(d.querySelector('[data-variant-hd]').disabled,false);assert.match(d.querySelector('#agent-ai-message').textContent,/remboursés/);}finally{finish?.({jobs:[]});dom.window.close();}
+});
+
+await test('Le rendu HD affiche son supplément, conserve la source et bloque le double clic pendant un job récupérable',async()=>{
+ const photo='/media/'+'H'.repeat(32)+'.png',calls=[],confirmations=[],property={slug:'hd-studio',title:'HD technique',status:'Draft',privacy:'Unlisted',credits:6,agency:{},agent:{},features:[],rooms:[{id:'salon',name:'Salon',photos:[photo]}]};
+ const parent={id:'parent',slug:property.slug,room:'salon',original:photo,image:'data:image/png;base64,AQID',label:'Japandi',revision:1};let finish;
+ const dom=await domAt('http://localhost/agent',async(url,body)=>{
+  calls.push({url,body});if(url==='/api/agent/properties')return [property];if(url==='/api/agent/activity')return {sessions:[],leads:[],variants:[]};if(url==='/api/agent/ai-config')return {hdRendering:true,prices:{preview:1,hd:2}};if(url==='/api/agent/variants')return [parent];
+  if(url==='/api/agent/generate')return {job:{id:'hd-job',slug:property.slug,room:'salon',original:photo,status:'processing',quality:'hd',creditsReserved:2}};
+  if(url.startsWith('/api/agent/jobs?id='))return new Promise(resolve=>finish=resolve);return {};
+ },w=>{fastJobTimers(w);w.confirm=message=>{confirmations.push(message);return true;};});
+ try{
+  const d=dom.window.document;d.querySelector('#agent-token').value='test';d.querySelector('#agent-login').requestSubmit();await settle();d.querySelector('[data-open]').click();d.querySelector('[data-editor-tab="Studio IA"]').click();await settle();
+  const button=d.querySelector('[data-variant-hd="parent"]');assert.equal(button.disabled,false);assert.match(button.textContent,/2 crédits/);button.click();button.click();await settle();
+  const sent=calls.filter(c=>c.url==='/api/agent/generate');assert.equal(sent.length,1);assert.equal(confirmations.length,1);assert.match(confirmations[0],/2 crédits supplémentaires/);assert.equal(sent[0].body.quality,'hd');assert.equal(sent[0].body.parentVariantId,'parent');assert.equal(sent[0].body.photo,photo);assert.equal(sent[0].body.action,'Rendu HD');assert.equal(sent[0].body.prompt,undefined);assert.equal(sent[0].body.mask,undefined);assert.equal(button.disabled,true);assert.equal(d.querySelector('[data-generate]').disabled,true);
+  await new Promise(resolve=>setTimeout(resolve,20));await settle();assert.ok(finish);
+  finish({jobs:[{id:'hd-job',status:'completed',credits:4,result:{...parent,id:'hd-result',quality:'hd',parentVariantId:'parent',label:'Japandi · HD',dimensions:{width:2048,height:1536}}}]});await new Promise(resolve=>setTimeout(resolve,20));await settle();
+  assert.ok(d.querySelector('[data-variant-node="hd-result"] .variant-hd-badge'));assert.match(d.querySelector('.variant-hd-badge').textContent,/2048 × 1536/);assert.equal(d.querySelector('[data-variant-hd="hd-result"]'),null);assert.match(d.querySelector('[data-studio-credits]').textContent,/4/);assert.equal(d.querySelector('[data-generate]').disabled,false);
+ }finally{finish?.({jobs:[]});dom.window.close();}
+});
+
+await test('Le rendu HD reste indisponible sans fournisseur, sans crédits ou pour une image distante et ne génère rien',async()=>{
+ for(const [available,credits,image] of [[false,8,'data:image/png;base64,AQID'],[true,1,'data:image/png;base64,AQID'],[true,8,'https://example.com/remote.png']]){
+  let generated=0;const photo='https://example.com/root.png',property={slug:'hd-unavailable',title:'HD',status:'Draft',privacy:'Unlisted',credits,agency:{},agent:{},features:[],rooms:[{id:'salon',name:'Salon',photos:[photo]}]};
+  const dom=await domAt('http://localhost/agent',async(url)=>{if(url==='/api/agent/properties')return [property];if(url==='/api/agent/activity')return {sessions:[],leads:[],variants:[]};if(url==='/api/agent/ai-config')return {hdRendering:available,prices:{hd:2,preview:1}};if(url==='/api/agent/variants')return [{id:'parent',slug:property.slug,room:'salon',original:photo,image,label:'Version',revision:1}];if(url==='/api/agent/generate')generated++;return {};});
+  try{const d=dom.window.document;d.querySelector('#agent-token').value='test';d.querySelector('#agent-login').requestSubmit();await settle();d.querySelector('[data-open]').click();d.querySelector('[data-editor-tab="Studio IA"]').click();await settle();const button=d.querySelector('[data-variant-hd="parent"]');assert.equal(button.disabled,true);button.click();assert.equal(generated,0);}finally{dom.window.close();}
+ }
+});
+
 await test('L’historique agent conserve les branches, renomme, favorise, supprime et restaure sans déclencher de génération',async()=>{
  const photo='https://example.com/root.jpg',calls=[],property={slug:'history',title:'Historique',status:'Draft',privacy:'Unlisted',credits:8,agency:{},agent:{},features:[],rooms:[{id:'salon',name:'Salon',photos:[photo]}]};
  const variants=[{id:'parent',slug:'history',room:'salon',original:photo,image:'https://example.com/parent.png',label:'Japandi',revision:1},{id:'child',slug:'history',room:'salon',original:photo,image:'https://example.com/child.png',label:'Japandi et parquet',parentVariantId:'parent',revision:1}];

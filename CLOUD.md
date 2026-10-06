@@ -62,7 +62,7 @@ Continue uniquement le SaaS PropertyTwin dans website/.
 Lis AGENTS.md, website/SAAS_REQUIREMENTS.md et website/SAAS_SCOPE.md avant de modifier.
 Inspecte les sources et vérifie l’état réel ; les résultats historiques ne prouvent pas l’achèvement.
 Conserve le périmètre complet du cahier des charges et commence par stabiliser la boucle agent → bien → photos → RoomPlan → IA → publication → Experience → lead.
-Les outils/presets du Studio, le transport de l’image d’inspiration et l’historique des variantes agent sont implémentés : vérifie leur parcours de bout en bout avant de poursuivre les exigences ouvertes, notamment HD, tarifs et pools agence.
+Les outils/presets du Studio, le transport de l’image d’inspiration et l’historique des variantes agent et leur rendu HD sont implémentés : vérifie leur parcours de bout en bout avant de poursuivre les exigences ouvertes, notamment tarifs et pools agence.
 Ne modifie pas l’iOS pour cette tâche. RoomPlan reste en consultation seule ; toutes les transformations se font sur les photos 2D.
 Les tests doivent employer leurs données temporaires et leurs providers techniques, sans appels payants ni base de production.
 Après chaque étape significative : npm run build, npm run lint, npm test depuis website/.
