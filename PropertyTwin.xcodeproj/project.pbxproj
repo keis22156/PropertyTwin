@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		32EEC1E73073294300ED4284 /* Msplat in Frameworks */ = {isa = PBXBuildFile; productRef = 32EEC1E63073294300ED4284 /* Msplat */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		32AA9F773071DDD20091C7A3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				32EEC1E73073294300ED4284 /* Msplat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +83,7 @@
 				32AA9F683071DDD00091C7A3 /* PropertyTwin */,
 				32AA9F793071DDD20091C7A3 /* PropertyTwinTests */,
 				32AA9F833071DDD20091C7A3 /* PropertyTwinUITests */,
+				32EEC1E53073294300ED4284 /* Frameworks */,
 				32AA9F673071DDD00091C7A3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +96,13 @@
 				32AA9F803071DDD20091C7A3 /* PropertyTwinUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		32EEC1E53073294300ED4284 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +125,7 @@
 			);
 			name = PropertyTwin;
 			packageProductDependencies = (
+				32EEC1E63073294300ED4284 /* Msplat */,
 			);
 			productName = PropertyTwin;
 			productReference = 32AA9F663071DDD00091C7A3 /* PropertyTwin.app */;
@@ -195,6 +209,9 @@
 			);
 			mainGroup = 32AA9F5D3071DDD00091C7A3;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				32EEC1E43073282400ED4284 /* XCLocalSwiftPackageReference "Vendor/msplat-ios/swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 32AA9F673071DDD00091C7A3 /* Products */;
 			projectDirPath = "";
@@ -399,17 +416,20 @@
 				DEVELOPMENT_TEAM = 578X655ZD3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Configuration/PropertyTwin-Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "PropertyTwin utilise la caméra et le capteur LiDAR afin de créer le modèle spatial de votre logement.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.PropertyTwin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.propertytwin.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -428,17 +448,20 @@
 				DEVELOPMENT_TEAM = 578X655ZD3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Configuration/PropertyTwin-Info.plist";
+				INFOPLIST_KEY_NSCameraUsageDescription = "PropertyTwin utilise la caméra et le capteur LiDAR afin de créer le modèle spatial de votre logement.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.PropertyTwin;
+				PRODUCT_BUNDLE_IDENTIFIER = com.propertytwin.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -528,7 +551,7 @@
 				32AA9F893071DDD20091C7A3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		32AA9F8A3071DDD20091C7A3 /* Build configuration list for PBXNativeTarget "PropertyTwin" */ = {
 			isa = XCConfigurationList;
@@ -537,7 +560,7 @@
 				32AA9F8C3071DDD20091C7A3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		32AA9F8D3071DDD20091C7A3 /* Build configuration list for PBXNativeTarget "PropertyTwinTests" */ = {
 			isa = XCConfigurationList;
@@ -546,7 +569,7 @@
 				32AA9F8F3071DDD20091C7A3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 		32AA9F903071DDD20091C7A3 /* Build configuration list for PBXNativeTarget "PropertyTwinUITests" */ = {
 			isa = XCConfigurationList;
@@ -555,9 +578,24 @@
 				32AA9F923071DDD20091C7A3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		32EEC1E43073282400ED4284 /* XCLocalSwiftPackageReference "Vendor/msplat-ios/swift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "Vendor/msplat-ios/swift";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		32EEC1E63073294300ED4284 /* Msplat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 32EEC1E43073282400ED4284 /* XCLocalSwiftPackageReference "Vendor/msplat-ios/swift" */;
+			productName = Msplat;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 32AA9F5E3071DDD00091C7A3 /* Project object */;
 }

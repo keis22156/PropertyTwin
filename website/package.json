@@ -1,0 +1,34 @@
+{
+  "name": "propertytwin-experience",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test.mjs frontend.test.mjs auth.test.mjs roomplan.test.mjs ai-jobs.test.mjs media-storage.test.mjs photo-retouch.test.mjs local-connection.test.mjs shared-server.test.mjs ai-mask.test.mjs ai-routing.test.mjs admin-routing.test.mjs studio-tools.test.mjs",
+    "build": "node scripts/build.mjs",
+    "prestart": "npm run build",
+    "pretest": "npm run build",
+    "dev": "npm run build && node --watch server.mjs",
+    "verify:visual": "npm run build && node --experimental-websocket scripts/visual-check.mjs",
+    "lint": "eslint .",
+    "test:postgres": "node scripts/postgres-check.mjs",
+    "dev:shared": "node scripts/shared-dev.mjs",
+    "db:shared": "node scripts/shared-dev.mjs --setup-only"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
+  "dependencies": {
+    "@google/model-viewer": "^4.3.1",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "jsdom": "^26.1.0"
+  }
+}

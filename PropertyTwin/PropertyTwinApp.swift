@@ -1,17 +1,30 @@
-//
-//  PropertyTwinApp.swift
-//  PropertyTwin
-//
-//  Created by keis aissaoui on 04/10/2026.
-//
-
+import SwiftData
 import SwiftUI
 
 @main
 struct PropertyTwinApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
+    private let modelContainer: ModelContainer = {
+        do {
+            return try ModelContainer(
+                for: Property.self,
+                ScannedRoom.self,
+                UserProfile.self,
+                Agency.self,
+                PropertyPhoto.self,
+                DesignVariant.self,
+                BuyerLead.self,
+                OfferIntent.self,
+                AnalyticsEvent.self,
+                BuyerInteraction.self,
+                FurnitureMeasurement.self
+            )
+        } catch {
+            fatalError("Impossible d’initialiser le stockage local: \(error)")
         }
+    }()
+
+    var body: some Scene {
+        WindowGroup { ContentView() }
+            .modelContainer(modelContainer)
     }
 }

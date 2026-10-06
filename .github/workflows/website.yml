@@ -1,0 +1,28 @@
+name: Website checks
+
+on:
+  push:
+    paths: ['website/**', 'scripts/cloud-setup.sh', '.github/workflows/website.yml']
+  pull_request:
+    paths: ['website/**', 'scripts/cloud-setup.sh', '.github/workflows/website.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: bash scripts/cloud-setup.sh
+      - run: npm run lint
+        working-directory: website
+      - run: npm test
+        working-directory: website

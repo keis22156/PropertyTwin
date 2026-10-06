@@ -1,0 +1,28 @@
+# Local data, credentials and generated dependencies.
+.DS_Store
+.env
+.env.*
+!.env.example
+Secrets
+Secrets.*
+!Secrets.example
+*.pem
+*.p12
+*.p8
+*.key
+node_modules/
+website/data/
+website/verification/
+*.log
+
+# Xcode user settings and build outputs.
+xcuserdata/
+DerivedData/
+build/
+*.xcarchive
+*.ipa
+
+# Local agent/service configuration.
+.codex/
+.agents/
+.aws/
